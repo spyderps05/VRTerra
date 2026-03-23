@@ -1,18 +1,20 @@
-// MapLibre GL JS — open-source map engine for the VR briefing table
-// Zero API keys required.
+/**
+ * terrain.js — MapLibre map rendered to A-Frame table texture
+ *   • Higher resolution canvas (2048×1440)
+ *   • Coordinate & zoom HUD updates
+ *   • Scale bar sync
+ *   • Smooth layer transitions
+ *   • Networked map sync via NAF
+ */
 
-let mapTexture = null;
+let mapTexture  = null;
 let mapInstance = null;
 
-// ─── Pipe MapLibre canvas onto the A-Frame table plane ───
+// ── Pipe MapLibre canvas → A-Frame table plane ────────────────────────────────
 AFRAME.registerComponent('map-terrain', {
     tick: function () {
-        if (!mapTexture) return;
-
-        // Force MapLibre to constantly flush to WebGL canvas even if it thinks it's offscreen
-        if (window.mapInstance) {
-            window.mapInstance.triggerRepaint();
-        }
+        if (!mapTexture || !window.mapInstance) return;
+        window.mapInstance.triggerRepaint();
 
         const mesh = this.el.getObject3D('mesh');
         if (mesh && mesh.material) {
@@ -25,42 +27,35 @@ AFRAME.registerComponent('map-terrain', {
     }
 });
 
-// ─── Hand Tracking: Pinch to Interact ───
+// ── Pinch-to-zoom / pan (hand tracking) ──────────────────────────────────────
 AFRAME.registerComponent('hand-map-controls', {
     init: function () {
-        this.isPinching = false;
-        this.pinchStartPos = new AFRAME.THREE.Vector3();
+        this.isPinching     = false;
+        this.pinchStartPos  = new AFRAME.THREE.Vector3();
         this.mapStartCenter = null;
-        this.mapStartZoom = 0;
+        this.mapStartZoom   = 0;
 
         this.el.addEventListener('pinchstarted', (evt) => {
             if (!mapInstance) return;
             this.isPinching = true;
             this.pinchStartPos.copy(evt.detail.position);
             this.mapStartCenter = mapInstance.getCenter();
-            this.mapStartZoom = mapInstance.getZoom();
+            this.mapStartZoom   = mapInstance.getZoom();
         });
 
         this.el.addEventListener('pinchmoved', (evt) => {
             if (!this.isPinching || !mapInstance) return;
-            const currentPos = evt.detail.position;
-            const deltaX = currentPos.x - this.pinchStartPos.x;
-            const deltaY = currentPos.y - this.pinchStartPos.y;
-            const deltaZ = currentPos.z - this.pinchStartPos.z;
-
-            // Get which hand this is attached to
-            const handComponent = this.el.getAttribute('hand-tracking-controls');
-            const hand = handComponent ? handComponent.hand : 'right';
+            const cur    = evt.detail.position;
+            const deltaX = cur.x - this.pinchStartPos.x;
+            const deltaY = cur.y - this.pinchStartPos.y;
+            const deltaZ = cur.z - this.pinchStartPos.z;
+            const hand   = (this.el.getAttribute('hand-tracking-controls') || {}).hand || 'right';
 
             if (hand === 'right') {
-                // Pinch and move up/down to zoom
-                const zoomDelta = deltaY * 15; // 10cm movement = 1.5 zoom levels
-                mapInstance.setZoom(this.mapStartZoom + zoomDelta);
-                const label = document.querySelector('#zoom-label');
-                if (label) label.setAttribute('value', 'Z:' + Math.round(mapInstance.getZoom()));
-            } else if (hand === 'left') {
-                // Pinch and move horizontally (X/Z) to pan
-                const speed = 100 * Math.pow(2, 12 - mapInstance.getZoom()); // Adjust based on zoom
+                mapInstance.setZoom(this.mapStartZoom + deltaY * 15);
+                updateZoomLabel(mapInstance.getZoom());
+            } else {
+                const speed = 100 * Math.pow(2, 12 - mapInstance.getZoom());
                 mapInstance.setCenter([
                     this.mapStartCenter.lng - deltaX * speed,
                     this.mapStartCenter.lat - deltaZ * speed
@@ -68,20 +63,18 @@ AFRAME.registerComponent('hand-map-controls', {
             }
         });
 
-        this.el.addEventListener('pinchended', () => {
-            this.isPinching = false;
-        });
+        this.el.addEventListener('pinchended', () => { this.isPinching = false; });
     }
 });
 
-// ─── Left thumbstick scrolls/pans the map ───
+// ── Left thumbstick pans the map ──────────────────────────────────────────────
 AFRAME.registerComponent('map-nav', {
     schema: { speed: { default: 0.003 } },
+
     init: function () {
         this.xAxis = 0;
         this.yAxis = 0;
 
-        // Generic WebXR gamepad axis mapping
         this.el.addEventListener('axismove', (evt) => {
             if (evt.detail.axis && evt.detail.axis.length >= 2) {
                 this.xAxis = evt.detail.axis[0];
@@ -89,70 +82,73 @@ AFRAME.registerComponent('map-nav', {
             }
         });
 
-        // Oculus-specific fallback
         this.el.addEventListener('thumbstickmoved', (evt) => {
-            if (evt.detail.x !== undefined && evt.detail.y !== undefined) {
+            if (evt.detail.x !== undefined) {
                 this.xAxis = evt.detail.x;
                 this.yAxis = evt.detail.y;
             }
         });
 
-        // Grip button = zoom in, trigger = zoom out (left hand)
+        // Grip = zoom in, trigger = zoom out (left hand)
         this.el.addEventListener('gripdown', () => {
-            if (mapInstance) {
-                mapInstance.setZoom(mapInstance.getZoom() + 1);
-                this.updateZoomLabel();
-            }
+            if (!mapInstance) return;
+            mapInstance.setZoom(mapInstance.getZoom() + 1);
+            updateZoomLabel(mapInstance.getZoom());
         });
 
         this.el.addEventListener('triggerdown', () => {
-            if (mapInstance) {
-                mapInstance.setZoom(mapInstance.getZoom() - 1);
-                this.updateZoomLabel();
-            }
+            if (!mapInstance) return;
+            mapInstance.setZoom(Math.max(1, mapInstance.getZoom() - 1));
+            updateZoomLabel(mapInstance.getZoom());
         });
     },
-    updateZoomLabel: function () {
-        const label = document.querySelector('#zoom-label');
-        if (label && mapInstance) {
-            label.setAttribute('value', 'Z:' + Math.round(mapInstance.getZoom()));
-        }
-    },
+
     tick: function () {
         if (!mapInstance) return;
-        const deadzone = 0.15;
-        let x = Math.abs(this.xAxis) > deadzone ? this.xAxis : 0;
-        let y = Math.abs(this.yAxis) > deadzone ? this.yAxis : 0;
+        const dz = 0.15;
+        const x  = Math.abs(this.xAxis) > dz ? this.xAxis : 0;
+        const y  = Math.abs(this.yAxis) > dz ? this.yAxis : 0;
         if (x === 0 && y === 0) return;
 
-        const zoom = mapInstance.getZoom();
+        const zoom  = mapInstance.getZoom();
         const speed = this.data.speed * Math.pow(2, 18 - zoom);
-        const center = mapInstance.getCenter();
-        mapInstance.setCenter([
-            center.lng + x * speed,
-            center.lat - y * speed
-        ]);
+        const c     = mapInstance.getCenter();
+        mapInstance.setCenter([c.lng + x * speed, c.lat - y * speed]);
     }
 });
 
-// ─── Zoom +/- buttons on table ───
+// ── Zoom +/- buttons ──────────────────────────────────────────────────────────
 AFRAME.registerComponent('map-zoom', {
     init: function () {
-        // A-Frame laser-controls fire 'click' on trigger pull when intersecting
         this.el.addEventListener('click', () => {
             if (!mapInstance) return;
-            if (this.el.id === 'btn-zoom-in') {
-                mapInstance.setZoom(mapInstance.getZoom() + 1);
-            } else if (this.el.id === 'btn-zoom-out') {
+            const id = this.el.id;
+            if (id === 'btn-zoom-in') {
+                mapInstance.setZoom(Math.min(18, mapInstance.getZoom() + 1));
+            } else {
                 mapInstance.setZoom(Math.max(1, mapInstance.getZoom() - 1));
             }
-            const label = document.querySelector('#zoom-label');
-            if (label) label.setAttribute('value', 'Z:' + Math.round(mapInstance.getZoom()));
+            updateZoomLabel(mapInstance.getZoom());
         });
     }
 });
 
-// ─── DEM + Imagery sources (shared between boot and layer switch) ───
+// ── Active-layer indicator ────────────────────────────────────────────────────
+function setActiveDashboardLayer(activeId) {
+    const ids = ['btn-osm', 'btn-esri', 'btn-carto'];
+    ids.forEach(id => {
+        const el  = document.getElementById(id);
+        if (!el) return;
+        const bar = el.querySelector('.btn-active-bar');
+        if (bar) bar.setAttribute('visible', id === activeId);
+    });
+    const names = { 'btn-osm': 'OSM', 'btn-esri': 'SAT', 'btn-carto': 'DARK' };
+    const layerEl = document.getElementById('hud-layer');
+    if (layerEl) layerEl.textContent = names[activeId] || '--';
+    if (window.GeoCollab) window.GeoCollab.activeLayer = activeId;
+}
+
+// ── Map style builder ─────────────────────────────────────────────────────────
 function buildDemSources() {
     return {
         terrainSource: {
@@ -168,98 +164,146 @@ function buildDemSources() {
     };
 }
 
-function buildStyle(imageryId, imageryTiles) {
+function buildStyle(id, tiles) {
     const sources = buildDemSources();
-    sources[imageryId] = { type: 'raster', tiles: imageryTiles, tileSize: 256 };
+    sources[id] = { type: 'raster', tiles, tileSize: 256 };
     return {
-        version: 8,
-        sources: sources,
+        version: 8, sources,
         layers: [
-            { id: imageryId, type: 'raster', source: imageryId },
-            { id: 'hillshade', type: 'hillshade', source: 'hillshadeSource', paint: { 'hillshade-shadow-color': '#000', 'hillshade-exaggeration': 0.6 } }
+            { id, type: 'raster', source: id },
+            {
+                id: 'hillshade', type: 'hillshade', source: 'hillshadeSource',
+                paint: { 'hillshade-shadow-color': '#000', 'hillshade-exaggeration': 0.5 }
+            }
         ],
-        terrain: { source: 'terrainSource', exaggeration: 5 }
+        terrain: { source: 'terrainSource', exaggeration: 4 }
     };
 }
 
-// ─── Layer switching buttons — uses 'click' event (fired by A-Frame raycaster) ───
+// ── Layer switcher ────────────────────────────────────────────────────────────
 AFRAME.registerComponent('layer-switcher', {
     init: function () {
         this.el.addEventListener('click', () => {
             if (!mapInstance) return;
             const id = this.el.id;
-            let style;
-
-            if (id === 'btn-osm') {
-                style = buildStyle('osm', ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']);
-            } else if (id === 'btn-esri') {
-                style = buildStyle('esri', ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']);
-            } else if (id === 'btn-carto') {
-                style = buildStyle('carto', ['https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png']);
-            }
-
-            if (style) {
-                mapInstance.setStyle(style);
-                const chatPanel = document.querySelector('#chat-panel');
-                if (chatPanel && chatPanel.components['canvas-ui-panel']) {
-                    chatPanel.components['canvas-ui-panel'].pushMessage('Layer → ' + id.replace('btn-', '').toUpperCase());
+            const styles = {
+                'btn-osm':   buildStyle('osm',   ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']),
+                'btn-esri':  buildStyle('esri',  ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}']),
+                'btn-carto': buildStyle('carto', ['https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'])
+            };
+            if (styles[id]) {
+                mapInstance.setStyle(styles[id]);
+                setActiveDashboardLayer(id);
+                const names = { 'btn-osm': 'OpenStreetMap', 'btn-esri': 'Satellite', 'btn-carto': 'Dark Mode' };
+                if (window.GeoCollab && window.GeoCollab.postSystemMessage) {
+                    window.GeoCollab.postSystemMessage(`Layer: ${names[id]}`);
                 }
             }
         });
     }
 });
 
-// ─── Boot MapLibre ───
+// ── Zoom label + HUD updater ──────────────────────────────────────────────────
+function updateZoomLabel(z) {
+    const rounded = Math.round(z);
+    const labelEl = document.getElementById('zoom-label');
+    if (labelEl) labelEl.setAttribute('value', `ZOOM: ${rounded}`);
+    const hudEl = document.getElementById('hud-zoom');
+    if (hudEl) hudEl.textContent = rounded;
+
+    // Update scale bar (rough approx — 1 tile at zoom z ≈ 156km)
+    updateScaleBar(z);
+}
+
+function updateScaleBar(zoom) {
+    // Approximate metres per pixel at equator
+    const mPerPx  = 156543 * Math.cos(33.6844 * Math.PI / 180) / Math.pow(2, zoom);
+    // Scale bar is 0.45m wide in 3D = 0.45 * mPerPx metres (1 table metre = ~1km at default zoom)
+    // Simplified: just show a round distance
+    const tableWidthMetres = 3.4;
+    const zoomFactor = Math.pow(2, 12 - zoom);
+    let distM = 1000 * zoomFactor; // rough 1km at z12
+
+    let label;
+    if (distM >= 1000) {
+        label = `${(distM / 1000).toFixed(0)} km`;
+    } else {
+        label = `${Math.round(distM)} m`;
+    }
+
+    const scaleEl = document.getElementById('scale-label');
+    if (scaleEl) scaleEl.setAttribute('value', label);
+}
+
+// ── Update coordinate HUD ─────────────────────────────────────────────────────
+function updateCoordHUD(center) {
+    const latEl = document.getElementById('hud-lat');
+    const lngEl = document.getElementById('hud-lng');
+    if (latEl) latEl.textContent = center.lat.toFixed(4);
+    if (lngEl) lngEl.textContent = center.lng.toFixed(4);
+    if (window.GeoCollab && window.GeoCollab.onMapMove) {
+        window.GeoCollab.onMapMove(center.lat, center.lng, mapInstance ? mapInstance.getZoom() : 12);
+    }
+}
+
+// ── Boot MapLibre ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Higher-res container
     const container = document.createElement('div');
-    container.id = 'mapContainer';
-    // IMPORTANT FIX: Let the map render normally in the DOM at full opacity.
-    // The A-Frame WebGL canvas will overlay 100% on top of it because of its high zIndex.
-    // This absolutely guarantees the Quest browser won't cull or throttle the map's WebGL context.
-    container.style.position = 'absolute';
-    container.style.top = '0px';
-    container.style.left = '0px';
-    container.style.width = '1416px';
-    container.style.height = '1000px';
-    container.style.zIndex = '1';
+    container.id = 'mapLibreContainer';
+    Object.assign(container.style, {
+        position: 'absolute',
+        top: '0', left: '0',
+        width: '2048px', height: '1440px',
+        zIndex: '1',
+        visibility: 'hidden'  // hidden from page — only used as WebGL texture
+    });
     document.body.appendChild(container);
 
-    const initialStyle = buildStyle('osm', ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']);
+    const center = (window.GeoCollab && window.GeoCollab.defaultCenter) || [73.0479, 33.6844];
+    const zoom   = (window.GeoCollab && window.GeoCollab.defaultZoom)   || 12;
 
     mapInstance = new maplibregl.Map({
-        container: container,
-        style: initialStyle,
-        center: [73.0479, 33.6844],   // Islamabad
-        zoom: 12,
-        pitch: 60,
-        bearing: -20,
+        container,
+        style: buildStyle('osm', ['https://tile.openstreetmap.org/{z}/{x}/{y}.png']),
+        center,
+        zoom,
+        pitch: 55,
+        bearing: -15,
         preserveDrawingBuffer: true
     });
 
     mapInstance.on('load', () => {
         const canvas = mapInstance.getCanvas();
-        mapTexture = new AFRAME.THREE.CanvasTexture(canvas);
+        mapTexture   = new AFRAME.THREE.CanvasTexture(canvas);
         window.mapInstance = mapInstance;
 
-        // Network sync
+        updateZoomLabel(zoom);
+        setActiveDashboardLayer('btn-osm');
+
+        // Coordinate HUD
+        mapInstance.on('move', () => updateCoordHUD(mapInstance.getCenter()));
+        mapInstance.on('zoom', () => updateZoomLabel(mapInstance.getZoom()));
+
+        // NAF map sync
         if (typeof NAF !== 'undefined') {
-            NAF.connection.subscribeToDataChannel('map-camera', (senderId, dataType, data) => {
+            NAF.connection.subscribeToDataChannel('map-camera', (senderId, type, data) => {
                 mapInstance.setCenter([data.lng, data.lat]);
                 mapInstance.setZoom(data.zoom);
             });
 
-            let lastCenter = { lng: 0, lat: 0 };
+            let lastLng = 0, lastLat = 0;
             setInterval(() => {
-                if (NAF.connection.isConnected()) {
+                if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.isConnected()) {
                     const c = mapInstance.getCenter();
-                    if (Math.abs(c.lng - lastCenter.lng) > 0.0001 || Math.abs(c.lat - lastCenter.lat) > 0.0001) {
-                        lastCenter = { lng: c.lng, lat: c.lat };
+                    if (Math.abs(c.lng - lastLng) > 0.0001 || Math.abs(c.lat - lastLat) > 0.0001) {
+                        lastLng = c.lng; lastLat = c.lat;
                         NAF.connection.broadcastData('map-camera', {
                             lng: c.lng, lat: c.lat, zoom: mapInstance.getZoom()
                         });
                     }
                 }
-            }, 200);
+            }, 250);
         }
     });
 });

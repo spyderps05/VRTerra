@@ -1,72 +1,66 @@
 /**
- * Advanced Laser component for A-Frame
- * Implements Learning 3 from Spatial_WebXR: custom laser colors and intersection reticles.
+ * advanced-laser.js — Laser pointer with intersection reticle
+ * Changes colour and shows a ring reticle when intersecting .interactable elements
  */
+
 AFRAME.registerComponent('advanced-laser', {
     schema: {
-        activeColor: { type: 'color', default: '#00ff00' },
+        activeColor:  { type: 'color', default: '#00ff00' },
         defaultColor: { type: 'color', default: '#ffffff' }
     },
 
     init: function () {
-        this.raycasterEl = this.el;
-
-        // Create the reticle ring in the scene
-        this.reticle = document.createElement('a-entity');
-        this.reticle.setAttribute('geometry', 'primitive: ring; radiusInner: 0.02; radiusOuter: 0.03');
-        this.reticle.setAttribute('material', `color: ${this.data.activeColor}; shader: flat; transparent: true; opacity: 0.8`);
+        // Reticle ring — use a-torus (ring geometry) instead of a-ring for compat
+        this.reticle = document.createElement('a-torus');
+        this.reticle.setAttribute('radius',         '0.023');
+        this.reticle.setAttribute('radius-tubular',  '0.006');
+        this.reticle.setAttribute('segments-tubular','8');
+        this.reticle.setAttribute('color', this.data.activeColor);
+        this.reticle.setAttribute('material',
+            `shader: flat; color: ${this.data.activeColor}; transparent: true; opacity: 0.85`);
         this.reticle.setAttribute('visible', false);
         this.el.sceneEl.appendChild(this.reticle);
 
-        // Bind event listeners
-        this.onIntersection = this.onIntersection.bind(this);
-        this.onIntersectionCleared = this.onIntersectionCleared.bind(this);
-
-        this.el.addEventListener('raycaster-intersection', this.onIntersection);
-        this.el.addEventListener('raycaster-intersection-cleared', this.onIntersectionCleared);
+        this._onHit     = this._onHit.bind(this);
+        this._onCleared = this._onCleared.bind(this);
+        this.el.addEventListener('raycaster-intersection',         this._onHit);
+        this.el.addEventListener('raycaster-intersection-cleared', this._onCleared);
     },
 
-    onIntersection: function (evt) {
-        const els = evt.detail.els;
-        if (els.length > 0) {
-            // Change laser line color when hitting an object
+    _onHit: function (evt) {
+        if (evt.detail.els.length > 0) {
             this.el.setAttribute('raycaster', 'lineColor', this.data.activeColor);
             this.reticle.setAttribute('visible', true);
         }
     },
 
-    onIntersectionCleared: function (evt) {
-        // Revert laser line to default
+    _onCleared: function () {
         this.el.setAttribute('raycaster', 'lineColor', this.data.defaultColor);
         this.reticle.setAttribute('visible', false);
     },
 
     tick: function () {
-        if (this.reticle.getAttribute('visible')) {
-            const raycaster = this.el.components.raycaster;
-            if (raycaster && raycaster.intersectedEls.length > 0) {
-                // Find the closest intersection
-                const intersection = raycaster.getIntersection(raycaster.intersectedEls[0]);
-                if (intersection) {
-                    // Snap the reticle strictly slightly above the intersected face to avoid Z-fighting
-                    this.reticle.setAttribute('position', intersection.point);
-
-                    // Calculate surface normal in world space to properly flatten the ring against the surface
-                    const normal = intersection.face.normal.clone();
-                    normal.transformDirection(intersection.object.matrixWorld).normalize();
-
-                    const target = new AFRAME.THREE.Vector3().addVectors(intersection.point, normal);
-                    this.reticle.object3D.lookAt(target);
-                }
-            } else {
-                this.reticle.setAttribute('visible', false);
-            }
+        if (!this.reticle.getAttribute('visible')) return;
+        const raycaster = this.el.components.raycaster;
+        if (!raycaster || !raycaster.intersectedEls.length) {
+            this.reticle.setAttribute('visible', false);
+            return;
         }
+        const hit = raycaster.getIntersection(raycaster.intersectedEls[0]);
+        if (!hit) return;
+
+        this.reticle.setAttribute('position', hit.point);
+
+        const normal = hit.face.normal.clone()
+            .transformDirection(hit.object.matrixWorld)
+            .normalize();
+        const target = new AFRAME.THREE.Vector3().addVectors(hit.point, normal);
+        this.reticle.object3D.lookAt(target);
     },
 
     remove: function () {
-        this.el.removeEventListener('raycaster-intersection', this.onIntersection);
-        this.el.removeEventListener('raycaster-intersection-cleared', this.onIntersectionCleared);
+        this.el.removeEventListener('raycaster-intersection',         this._onHit);
+        this.el.removeEventListener('raycaster-intersection-cleared', this._onCleared);
         if (this.reticle && this.reticle.parentNode) {
             this.reticle.parentNode.removeChild(this.reticle);
         }

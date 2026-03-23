@@ -1,158 +1,618 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>WebXR GeoCollab</title>
-    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.3/socket.io.js"></script>
-    <script src="https://unpkg.com/networked-aframe@0.12.0/dist/networked-aframe.min.js"></script>
-    <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css" rel="stylesheet">
-    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-    <!-- Teleport Controls to prevent motion sickness -->
-    <script src="https://unpkg.com/aframe-teleport-controls@0.3.x/dist/aframe-teleport-controls.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR GeoCollab — Tactical Operations</title>
     <link rel="stylesheet" href="css/ui.css">
+    <link href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css" rel="stylesheet">
 
-    <!-- Custom Scripts -->
-    <script src="js/app.js"></script>
+    <!-- Config loaded first so socket URL is available -->
+    <script src="js/config.js"></script>
+
+    <!-- A-Frame & Networking -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/networked-aframe@0.12.0/dist/networked-aframe.min.js"></script>
+
+    <!-- Map & Geo -->
+    <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+
+    <!-- VR Controls -->
+    <script src="https://unpkg.com/aframe-teleport-controls@0.3.x/dist/aframe-teleport-controls.min.js"></script>
+
+    <!-- Custom modules — order matters -->
+    <script src="js/environment.js"></script>
     <script src="js/avatar.js"></script>
     <script src="js/voice.js"></script>
-    <script src="js/map-tools.js"></script>
     <script src="js/terrain.js"></script>
+    <script src="js/map-tools.js"></script>
+    <script src="js/canvas-ui-panel.js"></script>
     <script src="js/polish.js"></script>
     <script src="js/smooth-locomotion.js"></script>
     <script src="js/advanced-laser.js"></script>
-    <script src="js/canvas-ui-panel.js"></script>
     <script src="js/area-marker.js"></script>
+    <script src="js/hud.js"></script>
+    <script src="js/app.js"></script>
 </head>
 
 <body>
-    <div id="ui-overlay">
-        <h1>WebXR GeoCollab</h1>
-        <p>Entering the tactical room...</p>
-        <button id="mic-btn">Allow Microphone & Continue</button>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  LOBBY OVERLAY                                          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="lobby-overlay">
+    <div class="scanlines"></div>
+    <div class="lobby-bg-grid"></div>
+
+    <div class="lobby-content">
+        <!-- Header -->
+        <div class="lobby-header">
+            <div class="lobby-logo">
+                <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="28" cy="28" r="24" stroke="#0088ff" stroke-width="1.5" opacity="0.5"/>
+                    <circle cx="28" cy="28" r="16" stroke="#0088ff" stroke-width="1.5" opacity="0.7"/>
+                    <circle cx="28" cy="28" r="8" stroke="#0088ff" stroke-width="1.5" opacity="0.9"/>
+                    <circle cx="28" cy="28" r="3" fill="#0088ff"/>
+                    <line x1="28" y1="4" x2="28" y2="12" stroke="#0088ff" stroke-width="2"/>
+                    <line x1="28" y1="44" x2="28" y2="52" stroke="#0088ff" stroke-width="2"/>
+                    <line x1="4"  y1="28" x2="12" y2="28" stroke="#0088ff" stroke-width="2"/>
+                    <line x1="44" y1="28" x2="52" y2="28" stroke="#0088ff" stroke-width="2"/>
+                    <line x1="14" y1="14" x2="19" y2="19" stroke="#0088ff" stroke-width="1.5" opacity="0.6"/>
+                    <line x1="42" y1="14" x2="37" y2="19" stroke="#0088ff" stroke-width="1.5" opacity="0.6"/>
+                    <line x1="14" y1="42" x2="19" y2="37" stroke="#0088ff" stroke-width="1.5" opacity="0.6"/>
+                    <line x1="42" y1="42" x2="37" y2="37" stroke="#0088ff" stroke-width="1.5" opacity="0.6"/>
+                </svg>
+            </div>
+            <h1>WebXR <span class="accent">GeoCollab</span></h1>
+            <p class="lobby-subtitle">TACTICAL OPERATIONS PLATFORM</p>
+            <div class="lobby-version">v2.0 — Spatial Command Interface</div>
+        </div>
+
+        <!-- Form -->
+        <div class="lobby-form">
+            <div class="form-group">
+                <label class="form-label">OPERATOR CALLSIGN</label>
+                <input id="username-input" class="form-input" type="text"
+                    placeholder="Enter callsign..." maxlength="16" autocomplete="off" spellcheck="false">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">AVATAR COLOR</label>
+                <div class="color-picker" id="color-picker">
+                    <div class="color-swatch selected" data-color="#4CC3D9" style="background:#4CC3D9;" title="Cyan Ops"></div>
+                    <div class="color-swatch" data-color="#FFC65D" style="background:#FFC65D;" title="Gold Intel"></div>
+                    <div class="color-swatch" data-color="#7BC8A4" style="background:#7BC8A4;" title="Green Field"></div>
+                    <div class="color-swatch" data-color="#F16745" style="background:#F16745;" title="Red Command"></div>
+                    <div class="color-swatch" data-color="#AA88FF" style="background:#AA88FF;" title="Purple Recon"></div>
+                    <div class="color-swatch" data-color="#FFD700" style="background:#FFD700;" title="Yellow Strike"></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">TACTICAL ROOM</label>
+                <div class="room-selector" id="room-selector">
+                    <button class="room-btn active" data-room="geocollab-room-1">
+                        <span class="room-icon">▲</span> ALPHA
+                    </button>
+                    <button class="room-btn" data-room="geocollab-room-2">
+                        <span class="room-icon">■</span> BRAVO
+                    </button>
+                    <button class="room-btn" data-room="geocollab-room-3">
+                        <span class="room-icon">●</span> CHARLIE
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-group form-group--actions">
+                <button id="enter-btn" class="enter-btn" disabled>
+                    <span class="enter-btn-glow"></span>
+                    <span class="enter-btn-icon">⬡</span>
+                    ENTER OPERATIONS CENTER
+                </button>
+                <div class="conn-status">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="conn-status-text">Initializing...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controller Reference -->
+        <div class="control-guide">
+            <div class="ctrl-title">▸ CONTROLLER REFERENCE</div>
+            <div class="ctrl-grid">
+                <div class="ctrl-item"><span class="ctrl-tag">L-STICK</span><span>Pan Map</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">R-TRIGGER</span><span>Drop Pin</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">L-GRIP</span><span>Tool Menu</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">B</span><span>Measure Distance</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">X</span><span>Mark Area</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">A</span><span>Mute / Unmute</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">Y</span><span>Close Area</span></div>
+                <div class="ctrl-item"><span class="ctrl-tag">R-STICK</span><span>Calibrate Height</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  HUD OVERLAY — shown after entering                     -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="hud-overlay" style="display:none">
+    <div class="hud-top-left">
+        <div class="hud-panel">
+            <div class="hud-row"><span class="hud-label">LAT</span><span id="hud-lat">--</span></div>
+            <div class="hud-row"><span class="hud-label">LNG</span><span id="hud-lng">--</span></div>
+            <div class="hud-row"><span class="hud-label">ZOOM</span><span id="hud-zoom">12</span></div>
+            <div class="hud-row"><span class="hud-label">LAYER</span><span id="hud-layer">OSM</span></div>
+        </div>
     </div>
 
-    <a-scene screenshot networked-scene="
-        room: geocollab-room-1;
-        adapter: socketio;
-        serverURL: /;
-        audio: true;
-      ">
-        <a-assets>
-            <template id="avatar-template">
-                <a-entity avatar-color>
-                    <a-sphere radius="0.2" material="color: #4CC3D9"></a-sphere>
-                    <a-text value="Operator" position="0 0.35 0" align="center" scale="0.4 0.4 0.4"></a-text>
-                </a-entity>
-            </template>
-            <template id="pin-template">
-                <a-entity>
-                    <a-sphere radius="0.03" color="#e74c3c"></a-sphere>
-                    <a-cylinder radius="0.005" height="0.15" color="#e74c3c" position="0 0.075 0"></a-cylinder>
-                </a-entity>
-            </template>
-        </a-assets>
+    <div class="hud-top-right">
+        <div class="hud-panel">
+            <div class="hud-row"><span class="hud-label">ROOM</span><span id="hud-room">ALPHA</span></div>
+            <div class="hud-row"><span class="hud-label">ONLINE</span><span id="hud-users">1</span></div>
+            <div class="hud-row hud-row--operator"><span class="hud-label">CALL</span><span id="hud-callsign">--</span></div>
+        </div>
+    </div>
 
-        <a-sky color="#1a1a2e"></a-sky>
+    <div class="hud-bottom-left">
+        <div class="hud-panel hud-panel--tool">
+            <div class="hud-row"><span class="hud-label">TOOL</span><span id="hud-tool">POINTER</span></div>
+        </div>
+    </div>
 
-        <!-- Lighting -->
-        <a-entity light="type: ambient; color: #CCC; intensity: 0.8"></a-entity>
-        <a-entity light="type: directional; color: #FFF; intensity: 0.8" position="-0.5 1 1"></a-entity>
+    <div class="hud-bottom-right">
+        <div class="hud-panel" id="hud-mic-panel">
+            <div id="hud-mic" class="mic-live">⬤ LIVE</div>
+        </div>
+    </div>
 
-        <!-- Floor -->
-        <a-plane id="floor" position="0 0 0" rotation="-90 0 0" width="20" height="20" color="#2d3436"
-            shadow="receive: true" class="collidable"></a-plane>
+    <div class="hud-chat-bar" id="hud-chat-bar" style="display:none">
+        <span class="chat-label">MSG ›</span>
+        <input id="chat-input" type="text" class="chat-input"
+            placeholder="Type message and press Enter..." maxlength="120">
+        <button id="chat-send-btn" class="chat-send-btn">SEND</button>
+    </div>
 
-        <!-- Briefing Table: low enough for seated use (top at 0.65m) -->
-        <a-box id="briefing-table" position="0 0.3 -1.8" width="3.5" height="0.6" depth="2.5" color="#3d3d3d"
-            shadow="receive: true; cast: true" class="collidable"></a-box>
+    <div class="hud-help">
+        <kbd>T</kbd> Chat &nbsp;|&nbsp; <kbd>Esc</kbd> Lobby &nbsp;|&nbsp; <kbd>M</kbd> 2D Map
+    </div>
+</div>
 
-        <!-- Map Layer on table surface -->
-        <a-plane id="map-surface" position="0 0.61 -1.8" rotation="-90 0 0" width="3.4" height="2.4" map-terrain
-            shadow="receive: true" class="collidable interactable"></a-plane>
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  NON-VR 2D MODE                                         -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="nonvr-overlay" style="display:none">
+    <div id="nonvr-sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">⬡</div>
+            <h2>GeoCollab</h2>
+            <p class="sidebar-subtitle">2D Mission Overview</p>
+        </div>
 
-        <!-- TACTICAL COMMAND DASHBOARD (Angled 30deg towards user) -->
-        <a-entity id="dashboard" position="0 0.65 -0.5" rotation="-30 0 0">
-            <!-- Dashboard Base -->
-            <a-box width="2.0" height="0.05" depth="0.4" color="#1a1a1a" shadow="receive: true"></a-box>
+        <div class="sidebar-section">
+            <div class="sidebar-label">MAP LAYERS</div>
+            <button class="sidebar-btn sidebar-btn--active" data-layer="osm">
+                <span>◎</span> OpenStreetMap
+            </button>
+            <button class="sidebar-btn" data-layer="esri">
+                <span>◉</span> Satellite
+            </button>
+            <button class="sidebar-btn" data-layer="carto">
+                <span>◈</span> Dark Mode
+            </button>
+        </div>
 
-            <!-- Layer Buttons -->
-            <a-text value="MAP LAYERS" position="-0.6 0.04 -0.1" align="center" scale="0.4 0.4 0.4" color="#ffffff"
-                rotation="-90 0 0"></a-text>
-            <a-box id="btn-osm" position="-0.8 0.03 0.05" width="0.25" height="0.04" depth="0.1" color="#3498db"
-                class="interactable" ui-button layer-switcher>
-                <a-text value="OSM" position="0 0.021 0" align="center" scale="0.5 0.5 0.5" color="white"
-                    rotation="-90 0 0"></a-text>
-            </a-box>
-            <a-box id="btn-esri" position="-0.5 0.03 0.05" width="0.25" height="0.04" depth="0.1" color="#27ae60"
-                class="interactable" ui-button layer-switcher>
-                <a-text value="SAT" position="0 0.021 0" align="center" scale="0.5 0.5 0.5" color="white"
-                    rotation="-90 0 0"></a-text>
-            </a-box>
-            <a-box id="btn-carto" position="-0.2 0.03 0.05" width="0.25" height="0.04" depth="0.1" color="#2c3e50"
-                class="interactable" ui-button layer-switcher>
-                <a-text value="DARK" position="0 0.021 0" align="center" scale="0.5 0.5 0.5" color="white"
-                    rotation="-90 0 0"></a-text>
-            </a-box>
+        <div class="sidebar-section">
+            <div class="sidebar-label">ONLINE OPERATORS</div>
+            <div id="nonvr-user-count" class="sidebar-stat">-- operators</div>
+        </div>
 
-            <!-- Zoom Controls -->
-            <a-text value="ZOOM" position="0.3 0.04 -0.1" align="center" scale="0.4 0.4 0.4" color="#ffffff"
-                rotation="-90 0 0"></a-text>
-            <a-box id="btn-zoom-out" position="0.15 0.03 0.05" width="0.15" height="0.04" depth="0.1" color="#e74c3c"
-                class="interactable" ui-button map-zoom>
-                <a-text value="-" position="0 0.021 0" align="center" scale="0.8 0.8 0.8" color="white"
-                    rotation="-90 0 0"></a-text>
-            </a-box>
-            <a-box id="btn-zoom-in" position="0.45 0.03 0.05" width="0.15" height="0.04" depth="0.1" color="#2ecc71"
-                class="interactable" ui-button map-zoom>
-                <a-text value="+" position="0 0.021 0" align="center" scale="0.8 0.8 0.8" color="white"
-                    rotation="-90 0 0"></a-text>
-            </a-box>
+        <div class="sidebar-section">
+            <div class="sidebar-label">ACTIVITY LOG</div>
+            <div id="nonvr-log" class="sidebar-log"></div>
+        </div>
 
-            <!-- System Actions -->
-            <a-text value="SYSTEM" position="0.75 0.04 -0.1" align="center" scale="0.4 0.4 0.4" color="#ffffff"
-                rotation="-90 0 0"></a-text>
-            <a-box id="btn-calibrate" position="0.75 0.03 0.05" width="0.3" height="0.04" depth="0.1" color="#9b59b6"
-                class="interactable" ui-button calibrate-button>
-                <a-text value="CALIBRATE" position="0 0.021 0" align="center" scale="0.4 0.4 0.4" color="white"
-                    rotation="-90 0 0"></a-text>
-            </a-box>
+        <div class="sidebar-section">
+            <button class="sidebar-btn" id="nonvr-back-btn">◄ Back to 3D View</button>
+        </div>
+    </div>
+    <div id="nonvr-map"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!--  A-FRAME SCENE                                          -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<a-scene
+    id="main-scene"
+    screenshot
+    renderer="antialias: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true"
+    shadow="type: pcfsoft"
+    background="color: #030610">
+
+    <a-assets>
+        <!-- ── Avatar Template ── -->
+        <template id="avatar-template">
+            <a-entity avatar-body>
+                <!-- Head -->
+                <a-sphere class="av-head" radius="0.14" position="0 0 0"
+                    material="roughness: 0.3; metalness: 0.2">
+                    <!-- Eyes -->
+                    <a-sphere radius="0.025" position="-0.055 0.02 -0.125" color="#080c14"
+                        material="shader: flat"></a-sphere>
+                    <a-sphere radius="0.025" position="0.055 0.02 -0.125" color="#080c14"
+                        material="shader: flat"></a-sphere>
+                    <!-- Eye glow -->
+                    <a-sphere radius="0.01" position="-0.055 0.02 -0.138" color="#00aaff"
+                        material="shader: flat; emissive: #00aaff; emissiveIntensity: 2"></a-sphere>
+                    <a-sphere radius="0.01" position="0.055 0.02 -0.138" color="#00aaff"
+                        material="shader: flat; emissive: #00aaff; emissiveIntensity: 2"></a-sphere>
+                </a-sphere>
+
+                <!-- Torso -->
+                <a-box class="av-torso" position="0 -0.37 0" width="0.28" height="0.38" depth="0.16"
+                    material="roughness: 0.5; metalness: 0.4">
+                    <!-- Chest stripe -->
+                    <a-box position="0 0.06 0.085" width="0.22" height="0.04" depth="0.01"
+                        color="#0070dd" material="shader: flat; emissive: #0055bb; emissiveIntensity: 1.5">
+                    </a-box>
+                </a-box>
+
+                <!-- Left arm -->
+                <a-cylinder class="av-arm-l" position="-0.21 -0.35 0" radius="0.042"
+                    height="0.30" rotation="0 0 20" material="roughness: 0.5; metalness: 0.4">
+                </a-cylinder>
+                <!-- Right arm -->
+                <a-cylinder class="av-arm-r" position="0.21 -0.35 0" radius="0.042"
+                    height="0.30" rotation="0 0 -20" material="roughness: 0.5; metalness: 0.4">
+                </a-cylinder>
+
+                <!-- Name label -->
+                <a-text class="av-name" value="Operator" position="0 0.34 0"
+                    align="center" scale="0.5 0.5 0.5" color="#c8e8ff"
+                    material="shader: flat"></a-text>
+
+                <!-- Voice-active ring -->
+                <a-torus class="av-voice-ring" radius="0.21" radius-tubular="0.012"
+                    color="#00ff88" visible="false"
+                    material="shader: flat; emissive: #00ff88; emissiveIntensity: 2.5;
+                              transparent: true; opacity: 0.9">
+                </a-torus>
+            </a-entity>
+        </template>
+
+        <!-- ── Improved Pin Template ── -->
+        <template id="pin-template">
+            <a-entity>
+                <a-sphere radius="0.04" position="0 0 0" color="#ff2244"
+                    material="emissive: #cc0022; emissiveIntensity: 0.9; roughness: 0.2; metalness: 0.5">
+                    <a-sphere radius="0.018" position="0 0 0" color="#ff88aa"
+                        material="shader: flat; emissive: #ff4466; emissiveIntensity: 3"></a-sphere>
+                </a-sphere>
+                <a-cylinder radius="0.007" height="0.22" color="#cc1133" position="0 -0.11 0"
+                    material="emissive: #880011; emissiveIntensity: 0.6; roughness: 0.3"></a-cylinder>
+                <a-torus radius="0.03" radius-tubular="0.005" position="0 -0.22 0"
+                    rotation="90 0 0" color="#ff2244"
+                    material="shader: flat; emissive: #ff2244; emissiveIntensity: 2"></a-torus>
+            </a-entity>
+        </template>
+    </a-assets>
+
+    <!-- ───────────────────────────────────────── -->
+    <!--  ENVIRONMENT                               -->
+    <!-- ───────────────────────────────────────── -->
+
+    <!-- Grid floor (texture created in environment.js) -->
+    <a-entity id="grid-floor" position="0 0 0"></a-entity>
+
+    <!-- Ceiling -->
+    <a-box width="22" height="0.1" depth="22" position="0 3.2 0" color="#060810"></a-box>
+
+    <!-- Walls -->
+    <a-box width="22" height="3.4" depth="0.08" position="0 1.6 -11"  color="#060810"></a-box>
+    <a-box width="22" height="3.4" depth="0.08" position="0 1.6  11"  color="#060810"></a-box>
+    <a-box width="0.08" height="3.4" depth="22" position="-11 1.6 0"  color="#060810"></a-box>
+    <a-box width="0.08" height="3.4" depth="22" position=" 11 1.6 0"  color="#060810"></a-box>
+
+    <!-- Ceiling strip lights -->
+    <a-box width="20" height="0.04" depth="0.3" position="0 3.18 0"
+        color="#0040cc" material="shader: flat; emissive: #0030aa; emissiveIntensity: 2"></a-box>
+    <a-box width="0.3" height="0.04" depth="20" position="0 3.18 0"
+        color="#0040cc" material="shader: flat; emissive: #0030aa; emissiveIntensity: 2"></a-box>
+
+    <!-- Corner pillars -->
+    <a-box width="0.3" height="3.1" depth="0.3" position="-4.5 1.55 -4.5"  color="#0a1020"></a-box>
+    <a-box width="0.3" height="3.1" depth="0.3" position=" 4.5 1.55 -4.5"  color="#0a1020"></a-box>
+    <a-box width="0.3" height="3.1" depth="0.3" position="-4.5 1.55  4.5"  color="#0a1020"></a-box>
+    <a-box width="0.3" height="3.1" depth="0.3" position=" 4.5 1.55  4.5"  color="#0a1020"></a-box>
+
+    <!-- Pillar accent strips -->
+    <a-box width="0.05" height="2.6" depth="0.05" position="-4.37 1.55 -4.37"
+        color="#0055ff" material="shader: flat; emissive: #0044dd; emissiveIntensity: 2.5"></a-box>
+    <a-box width="0.05" height="2.6" depth="0.05" position=" 4.37 1.55 -4.37"
+        color="#0055ff" material="shader: flat; emissive: #0044dd; emissiveIntensity: 2.5"></a-box>
+    <a-box width="0.05" height="2.6" depth="0.05" position="-4.37 1.55  4.37"
+        color="#0055ff" material="shader: flat; emissive: #0044dd; emissiveIntensity: 2.5"></a-box>
+    <a-box width="0.05" height="2.6" depth="0.05" position=" 4.37 1.55  4.37"
+        color="#0055ff" material="shader: flat; emissive: #0044dd; emissiveIntensity: 2.5"></a-box>
+
+    <!-- Main back wall screen -->
+    <a-box width="5.2" height="3.2" depth="0.08" position="0 2.0 -10.96" color="#080e1e"></a-box>
+    <a-plane width="4.8" height="2.8" position="0 2.0 -10.92" color="#020812"
+        material="emissive: #010408; emissiveIntensity: 1"></a-plane>
+    <a-text value="◈ GEOCOLLAB OPS ◈" position="0 3.35 -10.88"
+        align="center" scale="0.45 0.45 0.45" color="#0077ff"
+        material="shader: flat; emissive: #0055cc; emissiveIntensity: 1"></a-text>
+    <!-- Screen data lines decoration -->
+    <a-entity position="0 2.0 -10.89">
+        <a-box width="4.0" height="0.01" depth="0.01" position="0  0.9 0" color="#0044aa"
+            material="shader: flat; emissive: #0033aa; emissiveIntensity: 1"></a-box>
+        <a-box width="4.0" height="0.01" depth="0.01" position="0  0.4 0" color="#0044aa"
+            material="shader: flat; emissive: #0033aa; emissiveIntensity: 1"></a-box>
+        <a-box width="4.0" height="0.01" depth="0.01" position="0 -0.1 0" color="#0044aa"
+            material="shader: flat; emissive: #0033aa; emissiveIntensity: 1"></a-box>
+        <a-box width="4.0" height="0.01" depth="0.01" position="0 -0.6 0" color="#0044aa"
+            material="shader: flat; emissive: #0033aa; emissiveIntensity: 1"></a-box>
+        <a-box width="4.0" height="0.01" depth="0.01" position="0 -1.1 0" color="#0044aa"
+            material="shader: flat; emissive: #0033aa; emissiveIntensity: 1"></a-box>
+    </a-entity>
+
+    <!-- Side screens left -->
+    <a-box width="0.08" height="2.0" depth="3.0" position="-10.96 2.2 -1.5" color="#080e1e"></a-box>
+    <a-plane width="2.6" height="1.7" position="-10.92 2.2 -1.5"
+        rotation="0 90 0" color="#020812"
+        material="emissive: #010408; emissiveIntensity: 1"></a-plane>
+
+    <!-- Side screens right -->
+    <a-box width="0.08" height="2.0" depth="3.0" position="10.96 2.2 -1.5" color="#080e1e"></a-box>
+    <a-plane width="2.6" height="1.7" position="10.92 2.2 -1.5"
+        rotation="0 -90 0" color="#020812"
+        material="emissive: #010408; emissiveIntensity: 1"></a-plane>
+
+    <!-- ───────────────────────────────────────── -->
+    <!--  LIGHTING                                  -->
+    <!-- ───────────────────────────────────────── -->
+    <a-entity light="type: ambient; color: #080e22; intensity: 0.6"></a-entity>
+    <a-entity light="type: directional; color: #b8ccff; intensity: 0.5" position="-2 4 3"></a-entity>
+    <!-- Table key light -->
+    <a-entity light="type: point; color: #4488ff; intensity: 3.5; distance: 6; decay: 2"
+        position="0 3.0 -1.8"></a-entity>
+    <!-- Ambient fill -->
+    <a-entity light="type: point; color: #001050; intensity: 2; distance: 10" position="-7 2 0"></a-entity>
+    <a-entity light="type: point; color: #001050; intensity: 2; distance: 10" position=" 7 2 0"></a-entity>
+    <!-- Back wall glow -->
+    <a-entity light="type: point; color: #002288; intensity: 1.5; distance: 8" position="0 2 -8"></a-entity>
+
+    <!-- ───────────────────────────────────────── -->
+    <!--  BRIEFING TABLE                            -->
+    <!-- ───────────────────────────────────────── -->
+
+    <!-- Table legs -->
+    <a-cylinder radius="0.045" height="0.62" position="-1.65 0.31  -0.51" color="#0e1628"
+        material="roughness: 0.2; metalness: 0.9"></a-cylinder>
+    <a-cylinder radius="0.045" height="0.62" position=" 1.65 0.31  -0.51" color="#0e1628"
+        material="roughness: 0.2; metalness: 0.9"></a-cylinder>
+    <a-cylinder radius="0.045" height="0.62" position="-1.65 0.31 -3.09" color="#0e1628"
+        material="roughness: 0.2; metalness: 0.9"></a-cylinder>
+    <a-cylinder radius="0.045" height="0.62" position=" 1.65 0.31 -3.09" color="#0e1628"
+        material="roughness: 0.2; metalness: 0.9"></a-cylinder>
+
+    <!-- Table surface -->
+    <a-box id="briefing-table" position="0 0.33 -1.8" width="3.65" height="0.07" depth="2.65"
+        color="#0c1428" shadow="receive: true; cast: true" class="collidable"
+        material="roughness: 0.05; metalness: 0.9; emissive: #040810; emissiveIntensity: 0.5"></a-box>
+
+    <!-- Table edge glow -->
+    <a-box width="3.67" height="0.012" depth="0.012" position="0 0.368 -0.48"
+        color="#0066cc" material="shader: flat; emissive: #0055bb; emissiveIntensity: 2"></a-box>
+    <a-box width="3.67" height="0.012" depth="0.012" position="0 0.368 -3.12"
+        color="#0066cc" material="shader: flat; emissive: #0055bb; emissiveIntensity: 2"></a-box>
+    <a-box width="0.012" height="0.012" depth="2.65" position="-1.825 0.368 -1.8"
+        color="#0066cc" material="shader: flat; emissive: #0055bb; emissiveIntensity: 2"></a-box>
+    <a-box width="0.012" height="0.012" depth="2.65" position=" 1.825 0.368 -1.8"
+        color="#0066cc" material="shader: flat; emissive: #0055bb; emissiveIntensity: 2"></a-box>
+
+    <!-- Map surface -->
+    <a-plane id="map-surface" position="0 0.375 -1.8" rotation="-90 0 0"
+        width="3.4" height="2.4" map-terrain class="collidable interactable"
+        material="roughness: 0; metalness: 0"></a-plane>
+
+    <!-- Map border frame -->
+    <a-box width="3.42" height="0.015" depth="0.015" position="0 0.382 -0.605"
+        color="#0088ff" material="shader: flat; emissive: #0066dd; emissiveIntensity: 2.5"></a-box>
+    <a-box width="3.42" height="0.015" depth="0.015" position="0 0.382 -2.995"
+        color="#0088ff" material="shader: flat; emissive: #0066dd; emissiveIntensity: 2.5"></a-box>
+    <a-box width="0.015" height="0.015" depth="2.42" position="-1.705 0.382 -1.8"
+        color="#0088ff" material="shader: flat; emissive: #0066dd; emissiveIntensity: 2.5"></a-box>
+    <a-box width="0.015" height="0.015" depth="2.42" position=" 1.705 0.382 -1.8"
+        color="#0088ff" material="shader: flat; emissive: #0066dd; emissiveIntensity: 2.5"></a-box>
+
+    <!-- Zoom & coordinates display above near edge of table -->
+    <a-text id="zoom-label" value="ZOOM: 12" position="0 0.395 -0.38"
+        rotation="-90 0 0" align="center" scale="0.38 0.38 0.38"
+        color="#00ccff" material="shader: flat"></a-text>
+
+    <!-- Scale bar -->
+    <a-entity position="-1.55 0.39 -0.45" rotation="-90 0 0">
+        <a-box id="scale-bar" width="0.45" height="0.009" depth="0.009" position="0.225 0 0"
+            color="#00ccff" material="shader: flat; emissive: #00aaff; emissiveIntensity: 1.5"></a-box>
+        <a-box width="0.009" height="0.05" depth="0.009" position="0 0 0"
+            color="#00ccff" material="shader: flat; emissive: #00aaff; emissiveIntensity: 1.5"></a-box>
+        <a-box width="0.009" height="0.05" depth="0.009" position="0.45 0 0"
+            color="#00ccff" material="shader: flat; emissive: #00aaff; emissiveIntensity: 1.5"></a-box>
+        <a-text id="scale-label" value="1 km" position="0.225 0.07 0"
+            align="center" scale="0.28 0.28 0.28" color="#00ccff" material="shader: flat"></a-text>
+    </a-entity>
+
+    <!-- Improved North Indicator -->
+    <a-entity position="0 0.39 -3.08" rotation="-90 0 0">
+        <a-cone radius-bottom="0.055" radius-top="0" height="0.16" color="#ff2244" position="0 0.08 0"
+            material="emissive: #cc0022; emissiveIntensity: 1.2"></a-cone>
+        <a-cone radius-bottom="0.055" radius-top="0" height="0.16" color="#cccccc" position="0 -0.08 0"
+            rotation="180 0 0" material="emissive: #888888; emissiveIntensity: 0.4"></a-cone>
+        <a-text value="N" position="0 0.28 0" align="center" scale="0.45 0.45 0.45"
+            color="#ff4466" material="shader: flat"></a-text>
+    </a-entity>
+
+    <!-- ───────────────────────────────────────── -->
+    <!--  TACTICAL DASHBOARD                        -->
+    <!-- ───────────────────────────────────────── -->
+    <a-entity id="dashboard" position="0 0.75 -0.4" rotation="-30 0 0">
+
+        <!-- Base plate -->
+        <a-box width="2.6" height="0.07" depth="0.6"
+            color="#080e1e" material="roughness: 0.15; metalness: 0.95; emissive: #040810; emissiveIntensity: 0.5">
+        </a-box>
+        <!-- Top border glow -->
+        <a-box width="2.62" height="0.01" depth="0.01" position="0 0.04 -0.295"
+            color="#0055cc" material="shader: flat; emissive: #0044bb; emissiveIntensity: 2">
+        </a-box>
+
+        <!-- ─ MAP LAYERS section ─ -->
+        <a-text value="▸ LAYERS" position="-1.18 0.055 -0.22"
+            align="left" scale="0.26 0.26 0.26" color="#4499ff" rotation="-90 0 0"
+            material="shader: flat"></a-text>
+
+        <!-- OSM button -->
+        <a-entity id="btn-osm" position="-1.0 0.06 0.0" ui-button layer-switcher class="interactable">
+            <a-box width="0.35" height="0.06" depth="0.22" color="#0f2040"
+                material="roughness: 0.2; metalness: 0.8; emissive: #071428; emissiveIntensity: 0.6"></a-box>
+            <a-text value="OSM" position="0 0.04 0" align="center"
+                scale="0.52 0.52 0.52" color="#44ccff" rotation="-90 0 0"
+                material="shader: flat"></a-text>
+            <a-box class="btn-active-bar" width="0.31" height="0.008" depth="0.006"
+                position="0 -0.027 0.11" color="#44ccff"
+                material="shader: flat; emissive: #44ccff; emissiveIntensity: 2.5"></a-box>
         </a-entity>
 
-        <!-- Zoom level indicator -->
-        <a-text id="zoom-label" value="Z:12" position="0 0.64 -1.8" align="center" scale="1 1 1" color="#00ff00"
-            rotation="-90 0 0"></a-text>
-
-        <!-- North Indicator -->
-        <a-entity position="0 0.61 -2.9" rotation="-90 0 0">
-            <a-cone radius-bottom="0.06" radius-top="0" height="0.25" color="#e74c3c"></a-cone>
-            <a-text value="N" position="0 0.2 0" align="center" scale="0.6 0.6 0.6" color="#FFF"></a-text>
+        <!-- SAT button -->
+        <a-entity id="btn-esri" position="-0.58 0.06 0.0" ui-button layer-switcher class="interactable">
+            <a-box width="0.35" height="0.06" depth="0.22" color="#0f2818"
+                material="roughness: 0.2; metalness: 0.8; emissive: #071a0e; emissiveIntensity: 0.6"></a-box>
+            <a-text value="SAT" position="0 0.04 0" align="center"
+                scale="0.52 0.52 0.52" color="#44ff99" rotation="-90 0 0"
+                material="shader: flat"></a-text>
+            <a-box class="btn-active-bar" width="0.31" height="0.008" depth="0.006"
+                position="0 -0.027 0.11" color="#44ff99"
+                material="shader: flat; emissive: #44ff99; emissiveIntensity: 2.5" visible="false"></a-box>
         </a-entity>
 
-        <!-- Chat Panel -->
-        <a-plane id="chat-panel" position="-2.2 1.2 -1.0" rotation="0 35 0" width="1" height="1.5" canvas-ui-panel
-            class="collidable interactable"></a-plane>
-
-        <!-- Player Rig -->
-        <a-entity id="player" camera position="0 1.6 1"
-            networked="template:#avatar-template; attachTemplateToLocal:false;" networked-audio-source wasd-controls
-            look-controls voice-toggle seated-mode>
-
-            <!-- Left hand: map scroll + laser pointer -->
-            <!-- Adding explicit oculus-touch-controls fixes the 90-degree laser tilt bug on Quest 3 WebXR -->
-            <a-entity oculus-touch-controls="hand: left" laser-controls="hand: left"
-                raycaster="objects: .interactable; far: 10; lineColor: #00ff00; lineOpacity: 0.8" map-nav
-                area-marker></a-entity>
-
-            <!-- Right hand: laser pointer + tools + snap turn -->
-            <a-entity oculus-touch-controls="hand: right" laser-controls="hand: right"
-                raycaster="objects: .interactable; far: 10; lineColor: #ff4444; lineOpacity: 0.8" pin-dropper
-                measure-tool snap-turn></a-entity>
+        <!-- DARK button -->
+        <a-entity id="btn-carto" position="-0.16 0.06 0.0" ui-button layer-switcher class="interactable">
+            <a-box width="0.35" height="0.06" depth="0.22" color="#130f28"
+                material="roughness: 0.2; metalness: 0.8; emissive: #0d0a1c; emissiveIntensity: 0.6"></a-box>
+            <a-text value="DARK" position="0 0.04 0" align="center"
+                scale="0.52 0.52 0.52" color="#aa88ff" rotation="-90 0 0"
+                material="shader: flat"></a-text>
+            <a-box class="btn-active-bar" width="0.31" height="0.008" depth="0.006"
+                position="0 -0.027 0.11" color="#aa88ff"
+                material="shader: flat; emissive: #aa88ff; emissiveIntensity: 2.5" visible="false"></a-box>
         </a-entity>
 
-    </a-scene>
+        <!-- Divider -->
+        <a-box width="0.012" height="0.065" depth="0.55" position="0.12 0.038 0.02"
+            color="#003388" material="shader: flat; emissive: #002266; emissiveIntensity: 1.5"></a-box>
+
+        <!-- ─ ZOOM section ─ -->
+        <a-text value="▸ ZOOM" position="0.22 0.055 -0.22"
+            align="left" scale="0.26 0.26 0.26" color="#4499ff" rotation="-90 0 0"
+            material="shader: flat"></a-text>
+
+        <!-- Zoom Out -->
+        <a-entity id="btn-zoom-out" position="0.35 0.06 0.0" ui-button map-zoom class="interactable">
+            <a-box width="0.26" height="0.06" depth="0.22" color="#281010"
+                material="roughness: 0.2; metalness: 0.8; emissive: #1a0808; emissiveIntensity: 0.6"></a-box>
+            <a-text value="−" position="0 0.04 0" align="center"
+                scale="1.1 1.1 1.1" color="#ff6644" rotation="-90 0 0"
+                material="shader: flat"></a-text>
+        </a-entity>
+
+        <!-- Zoom In -->
+        <a-entity id="btn-zoom-in" position="0.67 0.06 0.0" ui-button map-zoom class="interactable">
+            <a-box width="0.26" height="0.06" depth="0.22" color="#102810"
+                material="roughness: 0.2; metalness: 0.8; emissive: #081a08; emissiveIntensity: 0.6"></a-box>
+            <a-text value="+" position="0 0.04 0" align="center"
+                scale="1.1 1.1 1.1" color="#44ff88" rotation="-90 0 0"
+                material="shader: flat"></a-text>
+        </a-entity>
+
+        <!-- Divider -->
+        <a-box width="0.012" height="0.065" depth="0.55" position="0.84 0.038 0.02"
+            color="#003388" material="shader: flat; emissive: #002266; emissiveIntensity: 1.5"></a-box>
+
+        <!-- ─ SYSTEM section ─ -->
+        <a-text value="▸ SYSTEM" position="0.92 0.055 -0.22"
+            align="left" scale="0.26 0.26 0.26" color="#4499ff" rotation="-90 0 0"
+            material="shader: flat"></a-text>
+
+        <!-- Calibrate -->
+        <a-entity id="btn-calibrate" position="1.12 0.06 0.0" ui-button calibrate-button class="interactable">
+            <a-box width="0.42" height="0.06" depth="0.22" color="#1a1030"
+                material="roughness: 0.2; metalness: 0.8; emissive: #100820; emissiveIntensity: 0.6"></a-box>
+            <a-text value="CALIBRATE" position="0 0.04 0" align="center"
+                scale="0.42 0.42 0.42" color="#cc88ff" rotation="-90 0 0"
+                material="shader: flat"></a-text>
+        </a-entity>
+    </a-entity>
+
+    <!-- ───────────────────────────────────────── -->
+    <!--  SIDE PANELS                               -->
+    <!-- ───────────────────────────────────────── -->
+
+    <!-- Chat panel — left side -->
+    <a-plane id="chat-panel" position="-2.6 1.45 -1.0" rotation="0 28 0"
+        width="1.15" height="1.9" canvas-ui-panel class="collidable interactable">
+    </a-plane>
+    <a-cylinder radius="0.025" height="0.85" position="-2.6 0.6 -1.0" color="#0c1428"
+        material="emissive: #060810; emissiveIntensity: 0.5"></a-cylinder>
+    <a-box width="0.4" height="0.04" depth="0.4" position="-2.6 0.12 -1.0" color="#0c1428"
+        material="roughness: 0.3; metalness: 0.8"></a-box>
+
+    <!-- Tool guide panel — right side -->
+    <a-plane id="guide-panel" position="2.6 1.45 -1.0" rotation="0 -28 0"
+        width="1.15" height="1.9" tool-guide-panel class="collidable">
+    </a-plane>
+    <a-cylinder radius="0.025" height="0.85" position="2.6 0.6 -1.0" color="#0c1428"
+        material="emissive: #060810; emissiveIntensity: 0.5"></a-cylinder>
+    <a-box width="0.4" height="0.04" depth="0.4" position="2.6 0.12 -1.0" color="#0c1428"
+        material="roughness: 0.3; metalness: 0.8"></a-box>
+
+    <!-- ───────────────────────────────────────── -->
+    <!--  PLAYER RIG                                -->
+    <!-- ───────────────────────────────────────── -->
+    <a-entity id="player" position="0 0 1.6"
+        networked-audio-source
+        wasd-controls
+        look-controls
+        voice-toggle
+        seated-mode>
+
+        <!-- Camera -->
+        <a-entity camera position="0 1.6 0"></a-entity>
+
+        <!-- Left hand: map nav + area marker + tool menu -->
+        <a-entity id="left-hand"
+            oculus-touch-controls="hand: left"
+            laser-controls="hand: left"
+            raycaster="objects: .interactable; far: 12; lineColor: #00ccff; lineOpacity: 0.65"
+            advanced-laser="activeColor: #00ccff; defaultColor: #004466"
+            map-nav
+            area-marker
+            tool-radial-menu>
+        </a-entity>
+
+        <!-- Right hand: pin dropper + measure + snap turn -->
+        <a-entity id="right-hand"
+            oculus-touch-controls="hand: right"
+            laser-controls="hand: right"
+            raycaster="objects: .interactable; far: 12; lineColor: #ff4488; lineOpacity: 0.65"
+            advanced-laser="activeColor: #ff4488; defaultColor: #440022"
+            pin-dropper
+            measure-tool
+            snap-turn>
+        </a-entity>
+    </a-entity>
+
+</a-scene>
 </body>
-
 </html>

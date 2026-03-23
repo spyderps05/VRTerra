@@ -1,6 +1,6 @@
-const http = require('http');
+const http    = require('http');
 const express = require('express');
-const cors = require('cors');
+const cors    = require('cors');
 const socketIo = require('socket.io');
 
 const app = express();
@@ -10,71 +10,101 @@ app.use(express.static('public'));
 app.use('/terrain', express.static('terrain_tiles'));
 
 const webServer = http.createServer(app);
+
 const io = socketIo(webServer, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    },
+    transports: ['websocket', 'polling']
 });
 
-const rooms = new Map();
-const maxOccupantsInRoom = 50;
+// ── Room state ────────────────────────────────────────────────────────────────
+const rooms    = new Map();
+const userInfo = new Map(); // socketId → { name, color }
+
+const MAX_ROOM = 50;
 
 io.on('connection', (socket) => {
-  console.log('user connected', socket.id);
-  let curRoom = null;
+    console.log('+ connected', socket.id);
+    let curRoom = null;
 
-  socket.on('joinRoom', (data) => {
-    const { room } = data;
-    curRoom = room;
-    let roomInfo = rooms.get(room);
-    if (!roomInfo) {
-      roomInfo = { name: room, occupants: {}, occupantsCount: 0 };
-      rooms.set(room, roomInfo);
-    }
+    // ── NAF room join ─────────────────────────────────────────
+    socket.on('joinRoom', (data) => {
+        const { room } = data;
+        curRoom = room;
 
-    const joinedTime = Date.now();
-    roomInfo.occupants[socket.id] = joinedTime;
-    roomInfo.occupantsCount++;
+        let roomInfo = rooms.get(room);
+        if (!roomInfo) {
+            roomInfo = { name: room, occupants: {}, occupantsCount: 0 };
+            rooms.set(room, roomInfo);
+        }
+        if (roomInfo.occupantsCount >= MAX_ROOM) {
+            socket.emit('roomFull');
+            return;
+        }
 
-    console.log(`${socket.id} joined room ${curRoom}`);
-    socket.join(curRoom);
-    socket.emit('connectSuccess', { joinedTime });
-    const occupants = roomInfo.occupants;
-    io.in(curRoom).emit('occupantsChanged', { occupants });
-  });
+        roomInfo.occupants[socket.id] = Date.now();
+        roomInfo.occupantsCount++;
 
-  socket.on('send', (data) => {
-    io.to(data.to).emit('send', data);
-  });
+        console.log(`  ${socket.id} → room "${curRoom}" (${roomInfo.occupantsCount} users)`);
+        socket.join(curRoom);
+        socket.emit('connectSuccess', { joinedTime: Date.now() });
+        io.in(curRoom).emit('occupantsChanged', { occupants: roomInfo.occupants });
+    });
 
-  socket.on('broadcast', (data) => {
-    socket.to(curRoom).emit('broadcast', data);
-  });
+    // ── NAF relay ─────────────────────────────────────────────
+    socket.on('send', (data) => {
+        io.to(data.to).emit('send', data);
+    });
 
-  socket.on('disconnect', () => {
-    const roomInfo = rooms.get(curRoom);
-    if (roomInfo) {
-      console.log('user disconnected', socket.id);
-      delete roomInfo.occupants[socket.id];
-      roomInfo.occupantsCount--;
-      const occupants = roomInfo.occupants;
-      socket.to(curRoom).emit('occupantsChanged', { occupants });
-      if (roomInfo.occupantsCount === 0) {
-        rooms.delete(curRoom);
-      }
-    }
-  });
+    socket.on('broadcast', (data) => {
+        socket.to(curRoom).emit('broadcast', data);
+    });
+
+    // ── User identity ─────────────────────────────────────────
+    socket.on('userInfo', (data) => {
+        userInfo.set(socket.id, {
+            name:  (data.name  || 'Operator').slice(0, 20),
+            color: (data.color || '#4CC3D9')
+        });
+    });
+
+    // ── Text chat ─────────────────────────────────────────────
+    socket.on('chatMsg', (data) => {
+        if (!curRoom) return;
+        const info = userInfo.get(socket.id) || { name: 'Unknown', color: '#ffffff' };
+        const msg  = {
+            text:  String(data.text || '').slice(0, 200),
+            name:  info.name,
+            color: info.color,
+            time:  Date.now()
+        };
+        io.in(curRoom).emit('chatMsg', msg);
+    });
+
+    // ── Disconnect ────────────────────────────────────────────
+    socket.on('disconnect', () => {
+        console.log('- disconnected', socket.id);
+        userInfo.delete(socket.id);
+
+        const roomInfo = rooms.get(curRoom);
+        if (roomInfo) {
+            delete roomInfo.occupants[socket.id];
+            roomInfo.occupantsCount = Math.max(0, roomInfo.occupantsCount - 1);
+            socket.to(curRoom).emit('occupantsChanged', { occupants: roomInfo.occupants });
+            if (roomInfo.occupantsCount === 0) {
+                rooms.delete(curRoom);
+                console.log(`  room "${curRoom}" removed (empty)`);
+            }
+        }
+    });
 });
 
-const port = process.env.PORT || 5000;
-webServer.listen(port, '0.0.0.0', () => {
-  console.log(`🌐 HTTP server running at http://0.0.0.0:${port}`);
+const PORT = process.env.PORT || 5000;
+webServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 GeoCollab server running on http://0.0.0.0:${PORT}`);
 });
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-});
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
-});
+process.on('uncaughtException',  (err) => console.error('Uncaught Exception:',  err));
+process.on('unhandledRejection', (err) => console.error('Unhandled Rejection:', err));

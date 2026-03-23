@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebXR GeoCollab System — Execution Plan</title>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: #1e3050;
+    --tag-bg: #0f2035;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.7; }
+
+  .hero {
+    background: linear-gradient(135deg, #0a0f1e 0%, #111827 50%, #0f1e35 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 48px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 70% 50%, rgba(0,212,255,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 80%, rgba(124,58,237,0.07) 0%, transparent 50%);
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3);
+    border-radius: 20px; padding: 4px 14px; font-size: 12px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px;
+  }
+  .hero h1 { font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 12px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); max-width: 680px; font-size: 16px; }
+  .hero-meta { margin-top: 24px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .meta-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 32px 60px; }
+
+  /* Section nav */
+  .section-nav {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 20px 48px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .section-nav a {
+    text-decoration: none; color: var(--muted); font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 1px;
+    padding: 6px 14px; border-radius: 6px; border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .section-nav a:hover { color: var(--accent); border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.05); }
+
+  /* Section titles */
+  .section { margin-top: 52px; }
+  .section-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+  .section-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: white; flex-shrink: 0;
+  }
+  .section-title { font-size: 24px; font-weight: 700; }
+  .section-subtitle { color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; margin-bottom: 16px;
+  }
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .card p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .card ul { list-style: none; }
+  .card ul li { color: var(--muted); font-size: 14px; padding: 4px 0; display: flex; align-items: flex-start; gap: 8px; }
+  .card ul li::before { content: '→'; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+
+  /* Tags */
+  .tag {
+    display: inline-block; padding: 2px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .tag-blue { background: rgba(0,212,255,0.15); color: var(--accent); border: 1px solid rgba(0,212,255,0.25); }
+  .tag-purple { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.25); }
+  .tag-green { background: rgba(16,185,129,0.15); color: var(--accent3); border: 1px solid rgba(16,185,129,0.25); }
+  .tag-amber { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid rgba(245,158,11,0.25); }
+  .tag-red { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
+
+  /* Architecture diagram */
+  .arch {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 32px; text-align: center;
+  }
+  .arch-row { display: flex; justify-content: center; align-items: stretch; gap: 16px; margin: 12px 0; flex-wrap: wrap; }
+  .arch-box {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; min-width: 160px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .arch-box.highlight { border-color: var(--accent); background: rgba(0,212,255,0.05); }
+  .arch-box.highlight2 { border-color: #7c3aed; background: rgba(124,58,237,0.05); }
+  .arch-box .icon { font-size: 28px; }
+  .arch-box .label { font-size: 13px; font-weight: 700; }
+  .arch-box .sublabel { font-size: 11px; color: var(--muted); text-align: center; }
+  .arch-arrow { display: flex; align-items: center; color: var(--muted); font-size: 20px; }
+  .arch-line { border-top: 1px dashed var(--border); margin: 4px 0; width: 100%; }
+  .arch-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px; }
+
+  /* Code blocks */
+  .code-block {
+    background: #070d1a; border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; margin: 16px 0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.7; overflow-x: auto;
+  }
+  .code-block .comment { color: #4a5a7a; }
+  .code-block .key { color: #7c3aed; }
+  .code-block .val { color: var(--accent3); }
+  .code-block .cmd { color: var(--accent); }
+  .code-block .str { color: var(--warn); }
+  .code-block .tag-c { color: #f472b6; }
+
+  /* Phases timeline */
+  .phases { position: relative; padding-left: 32px; }
+  .phases::before {
+    content: ''; position: absolute; left: 10px; top: 0; bottom: 0;
+    width: 2px; background: linear-gradient(to bottom, var(--accent2), var(--accent), var(--accent3));
+  }
+  .phase { position: relative; margin-bottom: 32px; }
+  .phase-dot {
+    position: absolute; left: -27px; top: 4px;
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--surface); display: flex; align-items: center; justify-content: center;
+  }
+  .phase-dot.p1 { background: var(--accent2); }
+  .phase-dot.p2 { background: var(--accent); }
+  .phase-dot.p3 { background: var(--accent3); }
+  .phase h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .phase-desc { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+
+  /* Stack table */
+  .stack-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .stack-table th { background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; padding: 10px 16px; text-align: left; }
+  .stack-table td { padding: 10px 16px; border-top: 1px solid var(--border); vertical-align: top; }
+  .stack-table tr:hover td { background: var(--surface2); }
+  .stack-table .component { font-weight: 700; font-size: 13px; }
+  .stack-table .notes { color: var(--muted); font-size: 13px; }
+
+  /* Alert/callout */
+  .callout {
+    border-radius: 10px; padding: 16px 20px; margin: 16px 0;
+    display: flex; gap: 14px; align-items: flex-start; font-size: 14px;
+  }
+  .callout-warn { background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.25); }
+  .callout-info { background: rgba(0,212,255,0.07); border: 1px solid rgba(0,212,255,0.25); }
+  .callout-success { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.25); }
+  .callout-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .callout-text { color: var(--text); }
+  .callout-text strong { display: block; margin-bottom: 4px; }
+  .callout-text p { color: var(--muted); margin-top: 4px; }
+
+  /* Progress steps */
+  .steps { counter-reset: step; }
+  .step { display: flex; gap: 16px; margin-bottom: 20px; }
+  .step-num {
+    counter-increment: step;
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; color: var(--accent);
+  }
+  .step-num::before { content: counter(step); }
+  .step-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .step-body p { color: var(--muted); font-size: 13px; }
+
+  /* Spec table */
+  .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .spec-item { background: var(--surface2); border-radius: 8px; padding: 14px 18px; }
+  .spec-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px; }
+  .spec-val { font-size: 14px; font-weight: 700; color: var(--text); }
+  .spec-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Footer */
+  .doc-footer {
+    margin-top: 60px; padding: 28px 48px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .doc-footer span { font-size: 12px; color: var(--muted); }
+
+  @media (max-width: 720px) {
+    .hero { padding: 28px 20px; }
+    .section-nav { padding: 12px 20px; }
+    .container { padding: 0 16px 40px; }
+    .card-grid, .card-grid.three { grid-template-columns: 1fr; }
+    .spec-grid { grid-template-columns: 1fr; }
+    .arch-row { flex-direction: column; align-items: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─────────── HERO ─────────── -->
+<div class="hero">
+  <div class="hero-badge">🛰 GEOINT · WebXR · Collaborative Systems</div>
+  <h1>WebXR <span>GeoCollab</span> System</h1>
+  <h1 style="font-size:20px; font-weight:400; color:var(--muted); margin-top:6px;">
+    Multi-User Terrain Collaboration on Meta Quest 3 · Full Execution Blueprint
+  </h1>
+  <p style="margin-top:16px;">
+    A research-backed, open-source execution plan to build a local-network, multi-headset
+    collaborative VR terrain viewing room — built on WebXR, Networked A-Frame, CesiumJS terrain tiles,
+    and a self-hosted HTTPS server. No cloud. No fees. No native apps.
+  </p>
+  <div class="hero-meta">
+    <span class="meta-item"><span class="meta-dot" style="background:var(--accent)"></span>3–4 concurrent Meta Quest 3 headsets</span>
+    <span class="meta-item"><span class="meta-dot" style="background:var(--accent2)"></span>1 dedicated GPU server PC</span>
+    <span class="meta-item"><span class="meta-dot" style="background:var(--accent3)"></span>100% Local Network · Air-Gap capable</span>
+    <span class="meta-item"><span class="meta-dot" style="background:var(--warn)"></span>Open-source stack · Zero licensing cost</span>
+  </div>
+</div>
+
+<!-- ─────────── NAV ─────────── -->
+<div class="section-nav">
+  <a href="#concept">Concept</a>
+  <a href="#stack">Tech Stack</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#https-solution">HTTPS Fix</a>
+  <a href="#terrain-pipeline">Terrain Pipeline</a>
+  <a href="#networking">Multiplayer</a>
+  <a href="#phases">Phases</a>
+  <a href="#hardware">Hardware</a>
+  <a href="#build-steps">Build Steps</a>
+  <a href="#risks">Risks</a>
+</div>
+
+<div class="container">
+
+<!-- ─────────── SECTION 0: CONCEPT ─────────── -->
+<div class="section" id="concept">
+  <div class="section-header">
+    <div class="section-num">0</div>
+    <div>
+      <div class="section-title">What We're Building</div>
+      <div class="section-subtitle">The vision, scoped down to what is actually achievable</div>
+    </div>
+  </div>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">🎯</div>
+    <div class="callout-text">
+      <strong>Core Vision</strong>
+      <p>Three to four people wearing Meta Quest 3 headsets connect to a local Wi-Fi network. They open the browser on their headsets, navigate to <code>https://192.168.x.x:3000</code>, and enter a shared 3D space where they can see each other as avatars, talk in spatial audio, point at things, and look at your GIS terrain data together — all from one server PC with no internet required.</p>
+    </div>
+  </div>
+
+  <div class="card-grid" style="margin-top:20px;">
+    <div class="card">
+      <h3>🗺️ Phase 1 — The Map Room <span class="tag tag-green">MVP</span></h3>
+      <ul>
+        <li>Shared 3D space with GIS map draped on a flat terrain board</li>
+        <li>All users see each other as avatars with head/hand tracking</li>
+        <li>Spatial voice chat — talk over the map like a real briefing table</li>
+        <li>Pointer / laser tool to indicate positions on the map</li>
+        <li>Text chat panel for quick comms</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🏔️ Phase 2 — 3D Terrain Walk <span class="tag tag-amber">Advanced</span></h3>
+      <ul>
+        <li>Actual Quantized Mesh terrain tiles served locally (from SRTM/PRSS-1 DEM)</li>
+        <li>CesiumJS-powered fly-through of real terrain</li>
+        <li>Multi-user synchronized camera — everyone sees the same view</li>
+        <li>Measure tool, annotation pins, area marking</li>
+        <li>UAV/drone overlay track playback on terrain</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout callout-warn" style="margin-top:8px;">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-text">
+      <strong>Why Not a Native App?</strong>
+      <p>Native Meta Quest apps require a developer account, sideloading pipeline, and PC tethering for upload. WebXR runs in the built-in Horizon OS browser with zero installation on the headset — you just type a URL. This is the right choice for a small team.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 1: TECH STACK ─────────── -->
+<div class="section" id="stack">
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <div>
+      <div class="section-title">The Technology Stack</div>
+      <div class="section-subtitle">Every layer justified by research — all open source</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="stack-table">
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Technology</th>
+          <th>Why This</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="component">XR Runtime</td>
+          <td><strong>WebXR API</strong><br><span style="font-size:12px;color:var(--muted)">Horizon OS Browser</span></td>
+          <td class="notes">Native to Meta Quest browser. No app install. 1M+ monthly WebXR users on Quest. Supports immersive-vr mode + Shared Spaces (June 2025).</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">3D Framework</td>
+          <td><strong>A-Frame 1.6+</strong><br><span style="font-size:12px;color:var(--muted)">Three.js under the hood</span></td>
+          <td class="notes">HTML-declarative WebXR. Works with Meta Quest out-of-box. Vast ecosystem of components. Battle-tested for VR.</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Multiplayer</td>
+          <td><strong>Networked A-Frame (NAF)</strong><br><span style="font-size:12px;color:var(--muted)">github.com/networked-aframe</span></td>
+          <td class="notes">Purpose-built multi-user VR. Syncs position, rotation, any A-Frame component. Built-in WebRTC voice chat. Local server included (easyrtc).</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Signaling Server</td>
+          <td><strong>naf-nodejs-server</strong><br><span style="font-size:12px;color:var(--muted)">Socket.IO adapter</span></td>
+          <td class="notes">Lightweight Node.js server — handles room joining and message relay. Runs on the PC. No external dependencies.</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Terrain Rendering</td>
+          <td><strong>CesiumJS 1.118+</strong><br><span style="font-size:12px;color:var(--muted)">cesium.com</span></td>
+          <td class="notes">Apache-2.0 open source. Streams Quantized Mesh terrain tiles. WebXR integration exists. Can serve from local tile server with zero internet.</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Terrain Data</td>
+          <td><strong>Cesium Terrain Builder (Docker)</strong><br><span style="font-size:12px;color:var(--muted)">tum-gis/ctb-quantized-mesh</span></td>
+          <td class="notes">Converts your GeoTIFF DEMs (SRTM, PRSS-1, or any elevation data) into Quantized Mesh tiles. Self-hosted via simple Python/Node tile server.</td>
+          <td><span class="tag tag-amber">Setup Required</span></td>
+        </tr>
+        <tr>
+          <td class="component">Local HTTPS</td>
+          <td><strong>mkcert + Node HTTPS</strong><br><span style="font-size:12px;color:var(--muted)">filippo.io/mkcert</span></td>
+          <td class="notes">Generates a local CA root cert + host cert. Install CA on each Quest headset once. Then all devices trust your local server permanently. WebXR requires HTTPS.</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Web Server</td>
+          <td><strong>Node.js + Express</strong><br><span style="font-size:12px;color:var(--muted)">serves WebXR pages + tiles</span></td>
+          <td class="notes">One process serves the HTML/JS WebXR app AND the terrain tiles. Single machine, single server.</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Voice Chat</td>
+          <td><strong>NAF built-in WebRTC</strong><br><span style="font-size:12px;color:var(--muted)">no extra setup</span></td>
+          <td class="notes">Included in NAF's easyrtc adapter. Spatial audio between avatars. Requires HTTPS (covered by mkcert).</td>
+          <td><span class="tag tag-green">Production Ready</span></td>
+        </tr>
+        <tr>
+          <td class="component">Colocation (Optional)</td>
+          <td><strong>Quest Shared Spaces (Exp.)</strong><br><span style="font-size:12px;color:var(--muted)">Horizon OS v39+</span></td>
+          <td class="notes">Experimental feature (June 2025) — headsets in same room auto-share a coordinate space. Enables true co-located VR where people point at real-world positions.</td>
+          <td><span class="tag tag-amber">Experimental</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 2: ARCHITECTURE ─────────── -->
+<div class="section" id="architecture">
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <div>
+      <div class="section-title">System Architecture</div>
+      <div class="section-subtitle">One PC serves everything — local network, air-gap capable</div>
+    </div>
+  </div>
+
+  <div class="arch">
+    <div class="arch-section-label">Client Layer — Meta Quest 3 Headsets</div>
+    <div class="arch-row">
+      <div class="arch-box highlight2">
+        <div class="icon">🥽</div>
+        <div class="label">Quest 3 #1</div>
+        <div class="sublabel">Horizon OS Browser<br>WebXR Session</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="icon">🥽</div>
+        <div class="label">Quest 3 #2</div>
+        <div class="sublabel">Horizon OS Browser<br>WebXR Session</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="icon">🥽</div>
+        <div class="label">Quest 3 #3</div>
+        <div class="sublabel">Horizon OS Browser<br>WebXR Session</div>
+      </div>
+      <div class="arch-box" style="border-style:dashed;">
+        <div class="icon">🥽</div>
+        <div class="label">Quest 3 #4</div>
+        <div class="sublabel">Optional 4th<br>headset</div>
+      </div>
+    </div>
+
+    <div class="arch-arrow" style="justify-content:center; margin:4px 0;">
+      ↕ <span style="font-size:12px; margin-left:8px; color:var(--muted)">HTTPS (443) + WebRTC P2P + WebSocket (WSS) — all over local Wi-Fi</span>
+    </div>
+
+    <div class="arch-section-label">Network Layer — Local Wi-Fi (802.11ac / Wi-Fi 6)</div>
+    <div class="arch-row">
+      <div class="arch-box">
+        <div class="icon">📡</div>
+        <div class="label">Wi-Fi Router / AP</div>
+        <div class="sublabel">5 GHz · same subnet<br>no internet needed</div>
+      </div>
+    </div>
+
+    <div class="arch-arrow" style="justify-content:center; margin:4px 0;">↕</div>
+
+    <div class="arch-section-label">Server Layer — Single High-End PC (GPU Workstation)</div>
+    <div class="arch-row">
+      <div class="arch-box highlight">
+        <div class="icon">🌐</div>
+        <div class="label">HTTPS WebXR Server</div>
+        <div class="sublabel">Node.js + Express<br>Port 443 · mkcert cert<br>Serves index.html</div>
+      </div>
+      <div class="arch-box highlight">
+        <div class="icon">🔗</div>
+        <div class="label">NAF Signal Server</div>
+        <div class="sublabel">naf-nodejs-server<br>Socket.IO<br>Room sync + relay</div>
+      </div>
+      <div class="arch-box highlight">
+        <div class="icon">🏔️</div>
+        <div class="label">Terrain Tile Server</div>
+        <div class="sublabel">Static file server<br>Quantized Mesh tiles<br>/terrain/{z}/{x}/{y}.terrain</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; padding:12px; background:var(--surface2); border-radius:8px;">
+      <div class="arch-section-label" style="margin-bottom:8px;">Data Layer — Local Disk (Pre-processed offline)</div>
+      <div class="arch-row" style="margin:0;">
+        <div class="arch-box" style="min-width:120px;">
+          <div class="icon">🗂️</div>
+          <div class="label">GeoTIFF DEM</div>
+          <div class="sublabel">SRTM / PRSS-1<br>Your AOI data</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box" style="min-width:120px;">
+          <div class="icon">🐳</div>
+          <div class="label">CTB Docker</div>
+          <div class="sublabel">cesium-terrain-builder<br>Once, offline</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box" style="min-width:140px;">
+          <div class="icon">📦</div>
+          <div class="label">Tile Cache</div>
+          <div class="sublabel">.terrain files on disk<br>layer.json + z/x/y tree</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box" style="min-width:120px;">
+          <div class="icon">🌐</div>
+          <div class="label">Tile Server</div>
+          <div class="sublabel">Serves to CesiumJS<br>in each headset</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-success" style="margin-top:16px;">
+    <div class="callout-icon">✅</div>
+    <div class="callout-text">
+      <strong>Key Insight: One PC Does Everything</strong>
+      <p>The HTTPS web server, the NAF multiplayer signaling, and the terrain tile server are three small Node.js processes (or one combined) all running on the same PC. The Quest headsets are just browsers pointing to that PC's local IP.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 3: HTTPS SOLUTION ─────────── -->
+<div class="section" id="https-solution">
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <div>
+      <div class="section-title">Solving the HTTPS Problem</div>
+      <div class="section-subtitle">WebXR mandates HTTPS — here is the clean, permanent solution</div>
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-text">
+      <strong>Why HTTPS is Required</strong>
+      <p>Meta Quest's browser (Chromium-based) enforces that WebXR sessions and WebRTC (voice chat) can only be initiated from a secure origin — either <code>localhost</code> or a proper <code>https://</code> URL. On a local IP (192.168.x.x), plain HTTP will not work. You will get "XR not supported" errors.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>🔐 Solution: mkcert — Local Certificate Authority</h3>
+    <p style="margin-bottom:16px;">mkcert is a zero-config tool that creates a local CA (Certificate Authority) and signs certificates for your local network IP. You install the CA root once on each device, and from that point on all your local HTTPS is fully trusted — no browser warnings.</p>
+
+    <div class="code-block">
+<span class="comment"># ── Step 1: Install mkcert on the SERVER PC (Windows or Linux) ──</span>
+<span class="comment"># On Linux:</span>
+<span class="cmd">sudo apt install libnss3-tools</span>
+<span class="cmd">curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"</span>
+<span class="cmd">chmod +x mkcert-v*-linux-amd64 && sudo cp mkcert-v*-linux-amd64 /usr/local/bin/mkcert</span>
+
+<span class="comment"># ── Step 2: Create the local CA ──</span>
+<span class="cmd">mkcert -install</span>
+<span class="comment"># This prints the CA root location. You'll need to export it.</span>
+
+<span class="comment"># ── Step 3: Create cert for your server's IP ──</span>
+<span class="comment"># Replace 192.168.1.100 with your PC's actual local IP</span>
+<span class="cmd">mkcert 192.168.1.100 localhost 127.0.0.1</span>
+<span class="comment"># Creates: ./192.168.1.100+2.pem  and  ./192.168.1.100+2-key.pem</span>
+
+<span class="comment"># ── Step 4: Export the CA root cert ──</span>
+<span class="cmd">mkcert -CAROOT</span>  <span class="comment"># prints location, e.g. /root/.local/share/mkcert/</span>
+<span class="comment"># Copy rootCA.pem to a USB stick or shared folder</span>
+    </div>
+
+    <div class="code-block">
+<span class="comment"># ── Step 5: Install root CA on each Meta Quest 3 ──</span>
+<span class="comment"># Method A: via Android Debug Bridge (ADB) — recommended</span>
+<span class="cmd">adb push rootCA.pem /sdcard/Download/rootCA.crt</span>
+<span class="comment"># Then on the Quest: Settings → Security → Install from storage → pick rootCA.crt</span>
+
+<span class="comment"># Method B: Host it on your server and navigate to it in the Quest browser</span>
+<span class="comment"># Quest browser will offer to install certificate when you download a .crt file</span>
+    </div>
+
+    <div class="code-block">
+<span class="comment"># ── Step 6: Use cert in Node.js HTTPS server ──</span>
+<span class="key">const</span> https = <span class="str">require</span>(<span class="str">'https'</span>);
+<span class="key">const</span> fs = <span class="str">require</span>(<span class="str">'fs'</span>);
+<span class="key">const</span> express = <span class="str">require</span>(<span class="str">'express'</span>);
+<span class="key">const</span> app = express();
+
+<span class="key">const</span> options = {
+  key: fs.readFileSync(<span class="str">'./certs/192.168.1.100+2-key.pem'</span>),
+  cert: fs.readFileSync(<span class="str">'./certs/192.168.1.100+2.pem'</span>)
+};
+
+app.use(express.static(<span class="str">'public'</span>));  <span class="comment">// Your WebXR HTML goes here</span>
+https.createServer(options, app).listen(<span class="val">443</span>, () => {
+  console.log(<span class="str">'🔒 HTTPS server running at https://192.168.1.100'</span>);
+});
+    </div>
+  </div>
+
+  <div class="callout callout-success">
+    <div class="callout-icon">✅</div>
+    <div class="callout-text">
+      <strong>One-time setup per headset</strong>
+      <p>Once the root CA is installed on a Quest, it trusts your local server permanently. No re-setup needed unless you factory-reset the headset or change the server IP. The certificate mkcert generates is valid for 2 years.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 4: TERRAIN PIPELINE ─────────── -->
+<div class="section" id="terrain-pipeline">
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <div>
+      <div class="section-title">Terrain Data Pipeline</div>
+      <div class="section-subtitle">From raw DEM (GeoTIFF) → Quantized Mesh tiles → CesiumJS in WebXR</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📐 The Flow</h3>
+    <div class="steps" style="margin-top:12px;">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h4>Acquire DEM Data (GeoTIFF)</h4>
+          <p>Use your SRTM data (30m), PRSS-1 sub-meter imagery, or any elevation raster for your AOI. Make sure it's in GeoTIFF format. Reproject to EPSG:4326 if needed using GDAL.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h4>Run Cesium Terrain Builder via Docker</h4>
+          <p>Use the Docker image <code>tum-gis/ctb-quantized-mesh</code> to tile your DEM into Quantized Mesh format. This runs entirely offline on your PC. For a 30m SRTM region, tiles up to zoom 12 are typically fine.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h4>Generate layer.json Manifest</h4>
+          <p>CTB also generates the <code>layer.json</code> file that CesiumJS needs to discover the tile structure. This file goes in the root of your terrain tile folder.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h4>Serve Tiles via Node.js Static Server</h4>
+          <p>Your Express server serves the tiles folder as static files. CesiumJS in each headset's browser requests tiles as needed, streaming only what's visible. No internet, no CDN.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h4>CesiumJS Renders in WebXR</h4>
+          <p>CesiumJS renders the terrain and you embed it inside the A-Frame/WebXR scene. Users can fly around and inspect the terrain in VR together.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-block" style="margin-top:0;">
+<span class="comment"># ── Terrain Processing Commands ──</span>
+
+<span class="comment"># 1. Build virtual dataset from multiple GeoTIFFs (if needed)</span>
+<span class="cmd">gdalbuildvrt dataset.vrt /data/*.tif</span>
+
+<span class="comment"># 2. Reproject to EPSG:4326 (required by CesiumJS)</span>
+<span class="cmd">gdalwarp -s_srs EPSG:32642 -t_srs EPSG:4326 dataset.vrt dataset-wgs84.vrt</span>
+
+<span class="comment"># 3. Add overview pyramid for multi-res rendering</span>
+<span class="cmd">gdaladdo -r average dataset-wgs84.vrt 2 4 8 16 32</span>
+
+<span class="comment"># 4. Run CTB inside Docker to generate Quantized Mesh tiles</span>
+<span class="cmd">docker run -it --name ctb \
+  -v "./dem_data:/data" \
+  -v "./terrain_output:/terrain" \
+  tumgis/ctb-quantized-mesh</span>
+
+<span class="comment"># Inside the container:</span>
+<span class="cmd">ctb-tile -f Mesh -C -N -o /terrain /data/dataset-wgs84.vrt</span>
+<span class="cmd">ctb-tile -f Mesh -C -N -l -o /terrain /data/dataset-wgs84.vrt</span>
+<span class="comment"># Output: /terrain/0/ through /terrain/12/ + layer.json</span>
+
+<span class="comment"># 5. Serve terrain tiles via Express (in your main server.js)</span>
+<span class="key">const</span> cors = require(<span class="str">'cors'</span>);
+app.use(<span class="str">'/terrain'</span>, cors(), express.static(<span class="str">'./terrain_output'</span>));
+<span class="comment"># CesiumJS will request: /terrain/layer.json  and  /terrain/{z}/{x}/{y}.terrain</span>
+
+<span class="comment"># 6. In your WebXR HTML — CesiumJS terrain provider</span>
+<span class="tag-c">&lt;script&gt;</span>
+<span class="key">const</span> viewer = <span class="key">new</span> Cesium.Viewer(<span class="str">'cesiumContainer'</span>, {
+  terrainProvider: <span class="key">new</span> Cesium.CesiumTerrainProvider({
+    url: <span class="str">'https://192.168.1.100/terrain'</span>
+  }),
+  baseLayerPicker: <span class="key">false</span>,
+  geocoder: <span class="key">false</span>
+});
+<span class="tag-c">&lt;/script&gt;</span>
+  </div>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">💡</div>
+    <div class="callout-text">
+      <strong>Phase 1 Shortcut</strong>
+      <p>For the MVP Map Room phase, you don't even need terrain tiles. Just use a flat plane with a GeoTIFF rendered as a PNG texture draped on it. This is 10x simpler and lets you validate multi-user VR first before tackling the terrain pipeline.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 5: NETWORKING ─────────── -->
+<div class="section" id="networking">
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <div>
+      <div class="section-title">Multi-User Networking</div>
+      <div class="section-subtitle">How 3–4 headsets synchronize position, voice, and state in real time</div>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>🔗 Networked A-Frame (NAF)</h3>
+      <ul>
+        <li>Syncs entity position and rotation 15 times/sec by default</li>
+        <li>Attach <code>networked</code> component to any A-Frame entity</li>
+        <li>Player avatars auto-created when users join</li>
+        <li>Interpolation built-in — smooth movement even at 15Hz</li>
+        <li>Works over WebSocket (reliable) or WebRTC P2P (low latency)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🎤 Voice Chat</h3>
+      <ul>
+        <li>Built into NAF via WebRTC data channel</li>
+        <li>Spatial audio — louder when avatars are close</li>
+        <li>Requires HTTPS origin (handled by mkcert)</li>
+        <li>Enable with: <code>audio: true</code> in scene config</li>
+        <li>No separate Jitsi or voice server needed</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="code-block" style="margin-top:16px;">
+<span class="comment">&lt;!-- ── Core NAF Setup in your index.html ── --&gt;</span>
+<span class="tag-c">&lt;a-scene</span>
+  <span class="key">networked-scene</span>=<span class="str">"
+    room: geocollab-room-1;
+    adapter: socketio;
+    serverURL: https://192.168.1.100:3000;
+    audio: true;
+    debug: false;
+  "</span><span class="tag-c">&gt;</span>
+
+  <span class="comment">&lt;!-- Avatar template (what other users look like) --&gt;</span>
+  <span class="tag-c">&lt;a-assets&gt;</span>
+    <span class="tag-c">&lt;template</span> <span class="key">id</span>=<span class="str">"avatar-template"</span><span class="tag-c">&gt;</span>
+      <span class="tag-c">&lt;a-entity&gt;</span>
+        <span class="comment">&lt;!-- Head --&gt;</span>
+        <span class="tag-c">&lt;a-sphere</span> <span class="key">radius</span>=<span class="str">"0.2"</span> <span class="key">position</span>=<span class="str">"0 0 0"</span> <span class="key">material</span>=<span class="str">"color: #4CC3D9"</span><span class="tag-c">&gt;&lt;/a-sphere&gt;</span>
+        <span class="comment">&lt;!-- Name tag --&gt;</span>
+        <span class="tag-c">&lt;a-text</span> <span class="key">value</span>=<span class="str">"Operator"</span> <span class="key">position</span>=<span class="str">"0 0.35 0"</span> <span class="key">align</span>=<span class="str">"center"</span> <span class="key">scale</span>=<span class="str">"0.4 0.4 0.4"</span><span class="tag-c">&gt;&lt;/a-text&gt;</span>
+        <span class="comment">&lt;!-- Laser pointer --&gt;</span>
+        <span class="tag-c">&lt;a-entity</span> <span class="key">laser-controls</span>=<span class="str">"hand: right"</span><span class="tag-c">&gt;&lt;/a-entity&gt;</span>
+      <span class="tag-c">&lt;/a-entity&gt;</span>
+    <span class="tag-c">&lt;/template&gt;</span>
+  <span class="tag-c">&lt;/a-assets&gt;</span>
+
+  <span class="comment">&lt;!-- Local player — position/rotation synced to all others --&gt;</span>
+  <span class="tag-c">&lt;a-entity</span>
+    <span class="key">id</span>=<span class="str">"player"</span>
+    <span class="key">camera</span>
+    <span class="key">position</span>=<span class="str">"0 1.6 5"</span>
+    <span class="key">networked</span>=<span class="str">"template:#avatar-template; attachTemplateToLocal:false;"</span>
+    <span class="key">networked-audio-source</span>
+  <span class="tag-c">&gt;&lt;/a-entity&gt;</span>
+
+  <span class="comment">&lt;!-- The shared terrain/map environment --&gt;</span>
+  <span class="tag-c">&lt;a-entity</span> <span class="key">id</span>=<span class="str">"terrain-table"</span> <span class="key">position</span>=<span class="str">"0 0 -3"</span><span class="tag-c">&gt;&lt;/a-entity&gt;</span>
+
+<span class="tag-c">&lt;/a-scene&gt;</span>
+  </div>
+
+  <div class="code-block">
+<span class="comment">// ── naf-nodejs-server (signaling server) setup ──</span>
+<span class="comment">// Install: npm install naf-nodejs-server</span>
+
+<span class="key">const</span> { createServer } = require(<span class="str">'https'</span>);
+<span class="key">const</span> { Server } = require(<span class="str">'socket.io'</span>);
+<span class="key">const</span> NAFServer = require(<span class="str">'naf-nodejs-server'</span>);
+<span class="key">const</span> fs = require(<span class="str">'fs'</span>);
+
+<span class="key">const</span> httpsServer = createServer({
+  key: fs.readFileSync(<span class="str">'./certs/key.pem'</span>),
+  cert: fs.readFileSync(<span class="str">'./certs/cert.pem'</span>)
+});
+
+<span class="key">const</span> io = <span class="key">new</span> Server(httpsServer, {
+  cors: { origin: <span class="str">'*'</span> }
+});
+
+NAFServer(io);  <span class="comment">// Attach NAF room management to Socket.IO</span>
+
+httpsServer.listen(<span class="val">3000</span>, () => {
+  console.log(<span class="str">'🔗 NAF Signal Server: wss://192.168.1.100:3000'</span>);
+});
+  </div>
+
+  <div class="callout callout-info">
+    <div class="callout-icon">🆕</div>
+    <div class="callout-text">
+      <strong>Meta Quest Shared Spaces (Horizon OS v39+, June 2025)</strong>
+      <p>If your team is in the same physical room, enable the experimental "Shared Spaces" flag in <code>chrome://flags</code> on each headset. This uses Meta's Shared Spatial Anchors so all headsets share the same real-world coordinate system — objects placed in VR align with the real room. Use PeerJS for the coordinate sharing signal as in Meta's official GitHub example.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 6: PHASES ─────────── -->
+<div class="section" id="phases">
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <div>
+      <div class="section-title">Execution Phases</div>
+      <div class="section-subtitle">Staged build plan — validate each phase before advancing</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-dot p1"></div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+          <h3>Phase 1 — Local Server + HTTPS + Single Headset Test <span class="tag tag-amber" style="margin-left:8px;">Week 1</span></h3>
+        </div>
+        <p class="phase-desc">Goal: One Quest 3 can open a WebXR scene served from the PC over HTTPS and enter VR mode successfully.</p>
+        <ul class="card" style="list-style:none; padding:14px 18px; background:var(--surface2); border-color:var(--border);">
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Install Node.js + Express on server PC</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Install mkcert, generate cert for LAN IP</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Install root CA on Quest 3 via ADB</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Serve a minimal A-Frame WebXR scene</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Confirm headset enters VR mode via browser</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Test controller tracking, basic interaction</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <div class="phase-dot p1"></div>
+        <h3>Phase 2 — Multi-User Room (3 Headsets, Avatars, Voice) <span class="tag tag-amber" style="margin-left:8px;">Week 2</span></h3>
+        <p class="phase-desc">Goal: Three Quest headsets enter the same room, see each other as avatars, and can speak to each other.</p>
+        <ul class="card" style="list-style:none; padding:14px 18px; background:var(--surface2); border-color:var(--border);">
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Set up naf-nodejs-server on PC (WSS)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Add NAF to A-Frame scene, configure room</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Design avatar template (head + hands + name tag)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Enable WebRTC voice chat in NAF</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Test mic permission on Quest (allow in browser)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Build shared table/environment for all to stand around</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <div class="phase-dot p2"></div>
+        <h3>Phase 3 — GIS Map Layer on Table <span class="tag tag-amber" style="margin-left:8px;">Week 3</span></h3>
+        <p class="phase-desc">Goal: A rendered satellite/topo map is shown on a virtual table in the shared space. Users can point at it.</p>
+        <ul class="card" style="list-style:none; padding:14px 18px; background:var(--surface2); border-color:var(--border);">
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Export your AOI map as PNG (QGIS → export at 4K)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Apply as texture to A-Frame plane entity</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Add grid overlay, coordinate display, north arrow</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Implement synced laser pointer (networked entity)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Add synchronized annotation pins</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <div class="phase-dot p3"></div>
+        <h3>Phase 4 — 3D Terrain (CesiumJS + Local Tiles) <span class="tag tag-amber" style="margin-left:8px;">Week 4–5</span></h3>
+        <p class="phase-desc">Goal: Real terrain from your DEM data is rendered in WebXR. Multiple users fly over it together.</p>
+        <ul class="card" style="list-style:none; padding:14px 18px; background:var(--surface2); border-color:var(--border);">
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Set up Docker + CTB pipeline, process DEM → Quantized Mesh</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Add terrain tile static route in Express</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Embed CesiumJS viewer inside WebXR canvas</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Synchronize Cesium camera position across users (via Socket.IO)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Add UAV/drone flight path overlay (GeoJSON → Cesium entity)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Performance testing — optimize tile LOD settings</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <div class="phase-dot p3"></div>
+        <h3>Phase 5 — Polish, Tools, Hardening <span class="tag tag-amber" style="margin-left:8px;">Week 6+</span></h3>
+        <p class="phase-desc">Production readiness: startup scripts, persistent room state, controller comfort, more tools.</p>
+        <ul class="card" style="list-style:none; padding:14px 18px; background:var(--surface2); border-color:var(--border);">
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Auto-start server on PC boot (systemd / pm2)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Measurement tool (distance, area on terrain)</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Screenshot capture from inside VR</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Session recording / replay</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Comfort settings: vignette, locomotion speed</li>
+          <li style="display:flex; gap:8px; font-size:13px; padding:4px 0;"><span style="color:var(--accent3);">✓</span> Room-scale boundaries displayed in VR</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 7: HARDWARE ─────────── -->
+<div class="section" id="hardware">
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <div>
+      <div class="section-title">Hardware Setup</div>
+      <div class="section-subtitle">Minimum and recommended specifications for the server PC and network</div>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>🖥️ Server PC Requirements</h3>
+      <div class="spec-grid">
+        <div class="spec-item">
+          <div class="spec-label">CPU</div>
+          <div class="spec-val">8+ cores</div>
+          <div class="spec-sub">Intel i7/i9 or AMD Ryzen 7+</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">RAM</div>
+          <div class="spec-val">32 GB</div>
+          <div class="spec-sub">For tile caching + OS</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">GPU</div>
+          <div class="spec-val">NVIDIA RTX 30/40xx</div>
+          <div class="spec-sub">For CTB processing speed; not needed for serving</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Storage</div>
+          <div class="spec-val">1 TB SSD</div>
+          <div class="spec-sub">Terrain tiles can be 10–100 GB</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Network</div>
+          <div class="spec-val">Gigabit LAN</div>
+          <div class="spec-sub">Wi-Fi 6 (802.11ax) NIC preferred</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">OS</div>
+          <div class="spec-val">Ubuntu 22.04 LTS</div>
+          <div class="spec-sub">Or Windows 11 with WSL2 for Docker</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📡 Network Requirements</h3>
+      <div class="spec-grid">
+        <div class="spec-item">
+          <div class="spec-label">Router / AP</div>
+          <div class="spec-val">Wi-Fi 6 (802.11ax)</div>
+          <div class="spec-sub">5 GHz band, all devices same SSID</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Bandwidth per headset</div>
+          <div class="spec-val">~5–20 Mbps</div>
+          <div class="spec-sub">For terrain tile streaming</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Latency requirement</div>
+          <div class="spec-val">&lt; 20ms</div>
+          <div class="spec-sub">Within local LAN should be &lt;5ms</div>
+        </div>
+        <div class="spec-item">
+          <div class="spec-label">Internet required?</div>
+          <div class="spec-val">NO</div>
+          <div class="spec-sub">Fully air-gap capable once set up</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <h3>🥽 Per Headset</h3>
+        <ul style="margin-top:8px;">
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:4px 0;"><span style="color:var(--accent);">→</span> Meta Quest 3 (128GB or 512GB)</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:4px 0;"><span style="color:var(--accent);">→</span> Horizon OS v39+ (for Shared Spaces)</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:4px 0;"><span style="color:var(--accent);">→</span> Root CA installed (one-time, via ADB)</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:4px 0;"><span style="color:var(--accent);">→</span> Bookmark saved to your server URL</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:4px 0;"><span style="color:var(--accent);">→</span> Developer mode enabled (for ADB access)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 8: BUILD STEPS ─────────── -->
+<div class="section" id="build-steps">
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <div>
+      <div class="section-title">Complete Build Steps</div>
+      <div class="section-subtitle">Copy-paste ready commands to go from zero to running system</div>
+    </div>
+  </div>
+
+  <div class="code-block">
+<span class="comment"># ════════════════════════════════════════════════
+# GeoCollab WebXR Server — Full Setup Script
+# Run on Ubuntu 22.04 server PC
+# ════════════════════════════════════════════════</span>
+
+<span class="comment"># 1. Install Node.js 20.x</span>
+<span class="cmd">curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs</span>
+
+<span class="comment"># 2. Install mkcert</span>
+<span class="cmd">sudo apt install libnss3-tools -y
+curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64"
+chmod +x mkcert-v*-linux-amd64
+sudo cp mkcert-v*-linux-amd64 /usr/local/bin/mkcert
+mkcert -install</span>
+
+<span class="comment"># 3. Find your server LAN IP</span>
+<span class="cmd">ip route get 1 | awk '{print $7}'</span>
+<span class="comment"># Example output: 192.168.1.100 — use this below</span>
+
+<span class="comment"># 4. Generate cert for your LAN IP</span>
+<span class="cmd">mkdir -p ~/geocollab/certs && cd ~/geocollab/certs
+mkcert 192.168.1.100 localhost 127.0.0.1
+cp "$(mkcert -CAROOT)/rootCA.pem" ./rootCA.crt</span>
+<span class="comment"># rootCA.crt = the file to copy to each Quest 3 via ADB</span>
+
+<span class="comment"># 5. Create project structure</span>
+<span class="cmd">cd ~/geocollab
+mkdir -p public terrain_tiles logs
+npm init -y
+npm install express socket.io naf-nodejs-server cors</span>
+
+<span class="comment"># 6. Install Docker (for terrain processing)</span>
+<span class="cmd">curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER</span>
+
+<span class="comment"># 7. Download/place your DEM GeoTIFF in ~/geocollab/dem_data/
+# Then process terrain (run ONCE, offline):</span>
+<span class="cmd">mkdir -p ~/geocollab/dem_data ~/geocollab/terrain_tiles
+docker run -it --rm \
+  -v ~/geocollab/dem_data:/data \
+  -v ~/geocollab/terrain_tiles:/terrain \
+  tumgis/ctb-quantized-mesh bash -c "
+    gdalbuildvrt /data/merged.vrt /data/*.tif
+    gdalwarp -t_srs EPSG:4326 /data/merged.vrt /data/merged-wgs84.vrt
+    ctb-tile -f Mesh -C -N -o /terrain /data/merged-wgs84.vrt
+    ctb-tile -f Mesh -C -N -l -o /terrain /data/merged-wgs84.vrt
+  "</span>
+
+<span class="comment"># 8. Start the GeoCollab server</span>
+<span class="cmd">cd ~/geocollab && node server.js</span>
+<span class="comment"># → HTTPS WebXR app at:    https://192.168.1.100</span>
+<span class="comment"># → NAF signaling server:  wss://192.168.1.100:3000</span>
+<span class="comment"># → Terrain tile server:   https://192.168.1.100/terrain</span>
+
+<span class="comment"># 9. Install root CA on each Quest via ADB</span>
+<span class="cmd">adb push ~/geocollab/certs/rootCA.crt /sdcard/Download/
+<span class="comment"># Then on Quest: Settings → Password & Security → Install certificate → CA cert → rootCA.crt</span></span>
+
+<span class="comment"># 10. On each Quest browser, navigate to:
+#     https://192.168.1.100
+#     → Click "Enter VR" → All headsets in same room!</span>
+  </div>
+</div>
+
+<!-- ─────────── SECTION 9: RISKS ─────────── -->
+<div class="section" id="risks">
+  <div class="section-header">
+    <div class="section-num">9</div>
+    <div>
+      <div class="section-title">Known Risks &amp; Mitigations</div>
+      <div class="section-subtitle">Issues you will hit and how to avoid or fix them</div>
+    </div>
+  </div>
+
+  <div class="card-grid" style="margin-bottom:0;">
+    <div class="card">
+      <h3>🔴 <span class="tag tag-red">HIGH</span> CesiumJS + WebXR Integration</h3>
+      <p>CesiumJS was not originally designed to render inside a WebXR canvas. Direct embed requires using CesiumJS as a Three.js renderer or rendering to a texture. This is the hardest technical challenge.</p>
+      <ul style="margin-top:12px;">
+        <li>Use Three.js Cesium adapter (resium for React) or render Cesium to off-screen canvas → copy to WebXR texture</li>
+        <li>Phase 1–3 avoid this entirely (flat map on a plane)</li>
+        <li>Prototype with A-Frame 3D tiles loader (community component) first</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🟡 <span class="tag tag-amber">MED</span> Quest Browser Audio Permissions</h3>
+      <p>WebRTC audio (voice chat) requires explicit microphone permission. Quest browsers prompt for this but users often accidentally deny it.</p>
+      <ul style="margin-top:12px;">
+        <li>Add a clear on-screen "Mic Permission" button before entering VR</li>
+        <li>Quest settings: Apps → Browser → Permissions → Microphone → Allow</li>
+        <li>Test voice before every session</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🟡 <span class="tag tag-amber">MED</span> Large Tile Performance</h3>
+      <p>Quantized Mesh tiles for a large AOI can overwhelm Quest's GPU if LOD settings are too aggressive. Quest 3 has 8 GB RAM shared between GPU and CPU.</p>
+      <ul style="margin-top:12px;">
+        <li>Limit maximum zoom to level 12 (30m SRTM resolution)</li>
+        <li>Set CesiumJS <code>maximumScreenSpaceError: 4</code> (less tiles loaded)</li>
+        <li>Pre-warm tile cache before VR session begins</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🟡 <span class="tag tag-amber">MED</span> NAF WebRTC on Local Network</h3>
+      <p>WebRTC peer-to-peer sometimes fails when devices are behind NAT, even on LAN. STUN/TURN servers are usually only needed for internet setups, but can still be an issue.</p>
+      <ul style="margin-top:12px;">
+        <li>Use WebSocket adapter instead of WebRTC for local LAN (slightly more latency, much more reliable)</li>
+        <li>All devices on same subnet — ensure router doesn't do client isolation</li>
+        <li>Disable "AP Client Isolation" on your Wi-Fi router</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🟢 <span class="tag tag-green">LOW</span> WebGPU not yet in Quest Browser</h3>
+      <p>As of Jan 2026, Quest's browser does not support WebGPU in WebXR mode (confirmed in Meta forums). This limits some advanced rendering.</p>
+      <ul style="margin-top:12px;">
+        <li>Use WebGL 2.0 (fully supported) for rendering</li>
+        <li>CesiumJS has a WebGPU branch but WebGL 2 path is stable and adequate</li>
+        <li>Monitor Meta's forum for WebGPU+WebXR release</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🟢 <span class="tag tag-green">LOW</span> Shared Spaces Colocation</h3>
+      <p>The new Shared Spaces feature (June 2025) is experimental and per-room — if the last user exits WebXR, the shared space is lost and must be re-established.</p>
+      <ul style="margin-top:12px;">
+        <li>Keep at least one headset in VR if shared anchors are needed</li>
+        <li>For briefing use cases, all enter together at session start</li>
+        <li>This is optional — NAF syncs avatars even without physical co-location</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────── FINAL SUMMARY ─────────── -->
+<div class="section">
+  <div class="card" style="background: linear-gradient(135deg, rgba(0,212,255,0.05), rgba(124,58,237,0.05)); border-color: rgba(0,212,255,0.2);">
+    <h3 style="color:var(--accent); font-size:18px; margin-bottom:16px;">📋 Executive Summary — Decision Checklist</h3>
+    <div class="card-grid three">
+      <div>
+        <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:8px;">Stack Decision</p>
+        <ul>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">✓</span> WebXR + A-Frame (not Unity/Unreal)</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">✓</span> NAF for multi-user sync</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">✓</span> mkcert for HTTPS</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">✓</span> CesiumJS for 3D terrain</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">✓</span> CTB Docker for tile processing</li>
+        </ul>
+      </div>
+      <div>
+        <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:8px;">Start With</p>
+        <ul>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--warn);">→</span> 1 Quest 3 + PC + local Wi-Fi</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--warn);">→</span> mkcert HTTPS first</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--warn);">→</span> Validate VR entry works</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--warn);">→</span> Then add 2nd headset + NAF</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--warn);">→</span> Map layer before terrain tiles</li>
+        </ul>
+      </div>
+      <div>
+        <p style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:8px;">Cost Estimate</p>
+        <ul>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">$</span> Software: $0 (all open source)</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">$</span> 3× Meta Quest 3: ~$1,500</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">$</span> Server PC (if new): $1,500–3,000</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">$</span> Wi-Fi 6 AP: $150–300</li>
+          <li style="display:flex; gap:8px; font-size:13px; color:var(--muted); padding:3px 0;"><span style="color:var(--accent3);">$</span> Recurring: $0</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end container -->
+
+<div class="doc-footer">
+  <span>WebXR GeoCollab System · Execution Blueprint · Researched March 2026</span>
+  <span>Stack: WebXR · A-Frame · Networked A-Frame · CesiumJS · Node.js · mkcert · CTB Docker</span>
+  <span>Classification: Internal Planning Document</span>
+</div>
+
+</body>
+</html>

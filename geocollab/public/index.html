@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>WebXR GeoCollab</title>
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.3/socket.io.js"></script>
+    <script src="https://unpkg.com/networked-aframe@0.12.0/dist/networked-aframe.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+    <!-- Teleport Controls to prevent motion sickness -->
+    <script src="https://unpkg.com/aframe-teleport-controls@0.3.x/dist/aframe-teleport-controls.min.js"></script>
+    <link rel="stylesheet" href="css/ui.css">
+
+    <!-- Custom Scripts -->
+    <script src="js/app.js"></script>
+    <script src="js/avatar.js"></script>
+    <script src="js/voice.js"></script>
+    <script src="js/map-tools.js"></script>
+    <script src="js/terrain.js"></script>
+    <script src="js/polish.js"></script>
+    <script src="js/smooth-locomotion.js"></script>
+    <script src="js/advanced-laser.js"></script>
+    <script src="js/canvas-ui-panel.js"></script>
+    <script src="js/area-marker.js"></script>
+</head>
+
+<body>
+    <div id="ui-overlay">
+        <h1>WebXR GeoCollab</h1>
+        <p>Entering the tactical room...</p>
+        <button id="mic-btn">Allow Microphone & Continue</button>
+    </div>
+
+    <a-scene screenshot networked-scene="
+        room: geocollab-room-1;
+        adapter: socketio;
+        serverURL: /;
+        audio: true;
+      ">
+        <a-assets>
+            <template id="avatar-template">
+                <a-entity avatar-color>
+                    <a-sphere radius="0.2" material="color: #4CC3D9"></a-sphere>
+                    <a-text value="Operator" position="0 0.35 0" align="center" scale="0.4 0.4 0.4"></a-text>
+                </a-entity>
+            </template>
+            <template id="pin-template">
+                <a-entity>
+                    <a-sphere radius="0.03" color="#e74c3c"></a-sphere>
+                    <a-cylinder radius="0.005" height="0.15" color="#e74c3c" position="0 0.075 0"></a-cylinder>
+                </a-entity>
+            </template>
+        </a-assets>
+
+        <a-sky color="#1a1a2e"></a-sky>
+
+        <!-- Lighting -->
+        <a-entity light="type: ambient; color: #CCC; intensity: 0.8"></a-entity>
+        <a-entity light="type: directional; color: #FFF; intensity: 0.8" position="-0.5 1 1"></a-entity>
+
+        <!-- Floor -->
+        <a-plane id="floor" position="0 0 0" rotation="-90 0 0" width="20" height="20" color="#2d3436"
+            shadow="receive: true" class="collidable"></a-plane>
+
+        <!-- Briefing Table: low enough for seated use (top at 0.65m) -->
+        <a-box id="briefing-table" position="0 0.3 -1.8" width="3.5" height="0.6" depth="2.5" color="#3d3d3d"
+            shadow="receive: true; cast: true" class="collidable"></a-box>
+
+        <!-- Map Layer on table surface -->
+        <a-plane id="map-surface" position="0 0.61 -1.8" rotation="-90 0 0" width="3.4" height="2.4" map-terrain
+            shadow="receive: true" class="collidable interactable"></a-plane>
+
+        <!-- TACTICAL COMMAND DASHBOARD (Angled 30deg towards user) -->
+        <a-entity id="dashboard" position="0 0.65 -0.5" rotation="-30 0 0">
+            <!-- Dashboard Base -->
+            <a-box width="2.0" height="0.05" depth="0.4" color="#1a1a1a" shadow="receive: true"></a-box>
+
+            <!-- Layer Buttons -->
+            <a-text value="MAP LAYERS" position="-0.6 0.04 -0.1" align="center" scale="0.4 0.4 0.4" color="#ffffff"
+                rotation="-90 0 0"></a-text>
+            <a-box id="btn-osm" position="-0.8 0.03 0.05" width="0.25" height="0.04" depth="0.1" color="#3498db"
+                class="interactable" ui-button layer-switcher>
+                <a-text value="OSM" position="0 0.021 0" align="center" scale="0.5 0.5 0.5" color="white"
+                    rotation="-90 0 0"></a-text>
+            </a-box>
+            <a-box id="btn-esri" position="-0.5 0.03 0.05" width="0.25" height="0.04" depth="0.1" color="#27ae60"
+                class="interactable" ui-button layer-switcher>
+                <a-text value="SAT" position="0 0.021 0" align="center" scale="0.5 0.5 0.5" color="white"
+                    rotation="-90 0 0"></a-text>
+            </a-box>
+            <a-box id="btn-carto" position="-0.2 0.03 0.05" width="0.25" height="0.04" depth="0.1" color="#2c3e50"
+                class="interactable" ui-button layer-switcher>
+                <a-text value="DARK" position="0 0.021 0" align="center" scale="0.5 0.5 0.5" color="white"
+                    rotation="-90 0 0"></a-text>
+            </a-box>
+
+            <!-- Zoom Controls -->
+            <a-text value="ZOOM" position="0.3 0.04 -0.1" align="center" scale="0.4 0.4 0.4" color="#ffffff"
+                rotation="-90 0 0"></a-text>
+            <a-box id="btn-zoom-out" position="0.15 0.03 0.05" width="0.15" height="0.04" depth="0.1" color="#e74c3c"
+                class="interactable" ui-button map-zoom>
+                <a-text value="-" position="0 0.021 0" align="center" scale="0.8 0.8 0.8" color="white"
+                    rotation="-90 0 0"></a-text>
+            </a-box>
+            <a-box id="btn-zoom-in" position="0.45 0.03 0.05" width="0.15" height="0.04" depth="0.1" color="#2ecc71"
+                class="interactable" ui-button map-zoom>
+                <a-text value="+" position="0 0.021 0" align="center" scale="0.8 0.8 0.8" color="white"
+                    rotation="-90 0 0"></a-text>
+            </a-box>
+
+            <!-- System Actions -->
+            <a-text value="SYSTEM" position="0.75 0.04 -0.1" align="center" scale="0.4 0.4 0.4" color="#ffffff"
+                rotation="-90 0 0"></a-text>
+            <a-box id="btn-calibrate" position="0.75 0.03 0.05" width="0.3" height="0.04" depth="0.1" color="#9b59b6"
+                class="interactable" ui-button calibrate-button>
+                <a-text value="CALIBRATE" position="0 0.021 0" align="center" scale="0.4 0.4 0.4" color="white"
+                    rotation="-90 0 0"></a-text>
+            </a-box>
+        </a-entity>
+
+        <!-- Zoom level indicator -->
+        <a-text id="zoom-label" value="Z:12" position="0 0.64 -1.8" align="center" scale="1 1 1" color="#00ff00"
+            rotation="-90 0 0"></a-text>
+
+        <!-- North Indicator -->
+        <a-entity position="0 0.61 -2.9" rotation="-90 0 0">
+            <a-cone radius-bottom="0.06" radius-top="0" height="0.25" color="#e74c3c"></a-cone>
+            <a-text value="N" position="0 0.2 0" align="center" scale="0.6 0.6 0.6" color="#FFF"></a-text>
+        </a-entity>
+
+        <!-- Chat Panel -->
+        <a-plane id="chat-panel" position="-2.2 1.2 -1.0" rotation="0 35 0" width="1" height="1.5" canvas-ui-panel
+            class="collidable interactable"></a-plane>
+
+        <!-- Player Rig -->
+        <a-entity id="player" camera position="0 1.6 1"
+            networked="template:#avatar-template; attachTemplateToLocal:false;" networked-audio-source wasd-controls
+            look-controls voice-toggle seated-mode>
+
+            <!-- Left hand: map scroll + laser pointer -->
+            <!-- Adding explicit oculus-touch-controls fixes the 90-degree laser tilt bug on Quest 3 WebXR -->
+            <a-entity oculus-touch-controls="hand: left" laser-controls="hand: left"
+                raycaster="objects: .interactable; far: 10; lineColor: #00ff00; lineOpacity: 0.8" map-nav
+                area-marker></a-entity>
+
+            <!-- Right hand: laser pointer + tools + snap turn -->
+            <a-entity oculus-touch-controls="hand: right" laser-controls="hand: right"
+                raycaster="objects: .interactable; far: 10; lineColor: #ff4444; lineOpacity: 0.8" pin-dropper
+                measure-tool snap-turn></a-entity>
+        </a-entity>
+
+    </a-scene>
+</body>
+
+</html>

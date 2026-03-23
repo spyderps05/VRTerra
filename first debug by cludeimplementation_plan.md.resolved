@@ -1,0 +1,132 @@
+# GeoCollab Repo Audit & Fix Plan
+
+Full audit of `f:\SWDEV\VRTerra\geocollab` against [MASTER-PLAN.md](file:///f:/SWDEV/VRTerra/MASTER-PLAN.md) and `@webxr-geocollab` skill.
+
+## Identified Issues
+
+### 🔴 Critical Bugs (App will not load)
+
+| # | File | Issue |
+|---|------|-------|
+| 1 | `index.html:8` | Socket.IO **v2.5.0** loaded from CDN, but [package.json](file:///f:/SWDEV/VRTerra/geocollab/package.json) has `socket.io@4.8.3` on the server. **Version mismatch = connection failure.** NAF 0.12 ships with socket.io v2 adapter — but server runs v4. |
+| 2 | `index.html:21` | `serverURL` is hard-coded to `https://192.168.1.14`. Should auto-detect from `window.location` so it works on any LAN. |
+| 3 | `terrain.js:12-16` | `new Cesium.CesiumTerrainProvider(...)` — this constructor was **deprecated** in Cesium 1.104+. Must use `Cesium.CesiumTerrainProvider.fromUrl()` (async). Also, `url: '/terrain'` points to an empty directory — **will 404 immediately and crash Cesium Viewer.** |
+| 4 | `terrain.js:8` | `cesiumContainer.style.display = 'none'` — Cesium **cannot render** into a hidden div (canvas has 0×0 size). Need `position: absolute; left: -9999px` instead. |
+| 5 | `terrain.js:20` | `scenegraph: false` — not a valid Cesium Viewer option. Will throw warning. |
+| 6 | `terrain.js:32` | `new THREE.CanvasTexture(canvas)` — `THREE` is not directly exposed by A-Frame 1.6. Must use `AFRAME.THREE.CanvasTexture`. |
+| 7 | `terrain.js:35-48` | `AFRAME.registerComponent('cesium-terrain', ...)` is called **inside** `DOMContentLoaded` — by that time A-Frame may have already parsed the HTML and tried to use the component. Must register **before** scene parse. |
+| 8 | `map-tools.js:38` | `THREE.MathUtils.generateUUID()` — same issue, should be `AFRAME.THREE.MathUtils.generateUUID()`. |
+| 9 | `index.html:9` | NAF v0.12.0 from **unpkg CDN** — but the Master Plan says **air-gap / zero internet**. All CDN deps will fail offline. |
+
+### 🟡 Missing Features (per Master Plan)
+
+| # | Feature | Status |
+|---|---------|--------|
+| 10 | **Floor plane** — removed during Phase 3 edits | Missing entirely. Players fall through the void. |
+| 11 | **Measurement tool** — distance between two points on terrain | Not implemented (only pin dropper exists). |
+| 12 | **Voice.js** — dedicated voice setup file from project structure | Missing. Voice relies only on NAF `audio: true` with no mic-permission button. |
+| 13 | **App.js** — scene logic / VR entry from project structure | Missing. Everything is inline or scattered. |
+| 14 | **Avatar.js** — avatar template + sync from project structure | Missing. Avatar is just a sphere with no hand tracking. |
+| 15 | **ui.css** — VR overlay UI styles | Missing. No CSS file exists. |
+| 16 | **VR Comfort** — snap turn, vignette, teleport locomotion | Not implemented. Only `wasd-controls` + `look-controls` (desktop only). |
+| 17 | **Coordinate labels on grid** | Grid overlay is just a wireframe plane with no labels. |
+| 18 | **`dem_data/` directory** | Missing from project structure. |
+| 19 | **`start` script in package.json** | `main` points to `index.js` not [server.js](file:///f:/SWDEV/VRTerra/geocollab/server.js). No `start` script. |
+| 20 | **Online terrain/map data** | User requests OSM + online terrain sources for testing (instead of local-only). |
+
+### 🟢 Architecture Issues
+
+| # | Issue |
+|---|-------|
+| 21 | Server hard-codes port 443 — needs `sudo`/admin on most systems. Should use env var or 3000. |
+| 22 | No `.gitignore` — `node_modules/` and `certs/` will be committed. |
+| 23 | No error handling in server.js at all (no try/catch on cert read, no process error handlers). |
+
+---
+
+## Proposed Changes
+
+### Server & Config
+
+#### [MODIFY] [server.js](file:///f:/SWDEV/VRTerra/geocollab/server.js)
+- Fix port to `process.env.PORT || 3000` (not 443)
+- Add error handling for cert reads
+- Add process-level error handlers
+- Log the actual LAN IP dynamically
+
+#### [MODIFY] [package.json](file:///f:/SWDEV/VRTerra/geocollab/package.json)
+- Set `"main": "server.js"`
+- Add `"start": "node server.js"` script
+
+#### [NEW] [.gitignore](file:///f:/SWDEV/VRTerra/geocollab/.gitignore)
+- Ignore `node_modules/`, `certs/`, `logs/`
+
+---
+
+### Frontend — Fix Critical Bugs
+
+#### [MODIFY] [index.html](file:///f:/SWDEV/VRTerra/geocollab/public/index.html)
+- Remove all CDN `<script>` tags — serve libs from `node_modules` or local `vendor/` folder
+- Auto-detect `serverURL` from `window.location.origin`
+- Add missing floor plane back
+- Add `<a-scene screenshot>` for screenshot support
+- Add mic-permission button overlay before VR entry
+- Fix Socket.IO version to match server
+
+#### [MODIFY] [terrain.js](file:///f:/SWDEV/VRTerra/geocollab/public/js/terrain.js)
+- **Switch from local `/terrain` to online sources** per user request:
+  - Use `Cesium.createWorldTerrainAsync()` for Cesium Ion world terrain (free tier)
+  - Use OSM Buildings imagery provider
+- Fix `display: none` → offscreen positioning
+- Remove invalid `scenegraph` option
+- Fix `THREE` → `AFRAME.THREE`
+- Register `cesium-terrain` component **outside** DOMContentLoaded
+- Add measurement tool (click two points, show distance)
+
+#### [MODIFY] [map-tools.js](file:///f:/SWDEV/VRTerra/geocollab/public/js/map-tools.js)
+- Fix `THREE` → `AFRAME.THREE`
+- Add coordinate labels to grid overlay
+- Improve pin dropper to work with map plane (not just table)
+
+---
+
+### Missing Files (from Master Plan project structure)
+
+#### [NEW] [app.js](file:///f:/SWDEV/VRTerra/geocollab/public/js/app.js)
+- Scene initialization logic
+- VR entry flow with mic permission handling
+- Auto-detect and configure NAF serverURL
+
+#### [NEW] [avatar.js](file:///f:/SWDEV/VRTerra/geocollab/public/js/avatar.js)
+- Avatar template registration (head + hands + nametag)
+- Color assignment per user
+- Hand tracking sync for Quest 3 controllers
+
+#### [NEW] [voice.js](file:///f:/SWDEV/VRTerra/geocollab/public/js/voice.js)
+- Mic permission request before VR entry
+- Spatial audio configuration
+- Mute/unmute toggle
+
+#### [NEW] [ui.css](file:///f:/SWDEV/VRTerra/geocollab/public/css/ui.css)
+- VR overlay button styles
+- Mic permission modal
+- Loading spinner
+- Chat panel styling
+
+#### [NEW] [.gitignore](file:///f:/SWDEV/VRTerra/geocollab/.gitignore)
+
+---
+
+## Verification Plan
+
+### Automated (Browser Test)
+1. Start server: `cd f:\SWDEV\VRTerra\geocollab && node server.js`
+2. Open `https://localhost:3000` in browser
+3. Verify: page loads without console errors
+4. Verify: A-Frame scene renders (sky, table, map, floor visible)
+5. Verify: Cesium terrain loads from online sources (OSM/Ion)
+6. Verify: Socket.IO connects (check "user connected" in server logs)
+
+### Manual (User)
+1. Open two browser tabs to `https://localhost:3000` — verify both connect and see each other's avatar
+2. When Quest 3 is available, test full VR entry with controllers

@@ -1,0 +1,40 @@
+/* VR Overlay UI */
+#ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(26, 26, 46, 0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* ensure it sits above the WebGL canvas before entering VR */
+  color: white;
+  font-family: sans-serif;
+}
+
+#ui-overlay h1 {
+  margin-bottom: 5px;
+}
+
+#ui-overlay p {
+  margin-bottom: 20px;
+  color: #ccc;
+}
+
+#mic-btn {
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  background-color: #4CC3D9;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+#mic-btn:hover {
+  background-color: #3ba3b8;
+}

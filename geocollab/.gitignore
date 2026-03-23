@@ -1,0 +1,6 @@
+node_modules/
+certs/
+logs/
+.env
+terrain_tiles/
+dem_data/

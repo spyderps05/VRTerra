@@ -1,27 +1,21 @@
-const https = require('https');
-const fs = require('fs');
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const socketIo = require('socket.io');
 
 const app = express();
 
-let options = {};
-try {
-  options = {
-    key: fs.readFileSync('./certs/key.pem'),
-    cert: fs.readFileSync('./certs/cert.pem')
-  };
-} catch (err) {
-  console.warn('⚠️ Could not load certificates from ./certs. Server will run without HTTPS or crash depending on setup.');
-}
-
 app.use(cors());
 app.use(express.static('public'));
 app.use('/terrain', express.static('terrain_tiles'));
 
-const webServer = https.createServer(options, app);
-const io = socketIo(webServer);
+const webServer = http.createServer(app);
+const io = socketIo(webServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 
 const rooms = new Map();
 const maxOccupantsInRoom = 50;
@@ -73,9 +67,9 @@ io.on('connection', (socket) => {
   });
 });
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 webServer.listen(port, '0.0.0.0', () => {
-  console.log(`🔒 HTTPS server running at https://0.0.0.0:${port}`);
+  console.log(`🌐 HTTP server running at http://0.0.0.0:${port}`);
 });
 
 process.on('uncaughtException', (err) => {
